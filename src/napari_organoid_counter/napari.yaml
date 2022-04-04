@@ -4,7 +4,12 @@ contributions:
   commands:
     - id: napari-organoid-counter.organoid_counter_widget
       python_name: napari_organoid_counter._widget:organoid_counter_widget
-      title: Make example widget 
+      title: Make parameter widget
+    - id: napari-organoid-counter.update_and_save_output
+      python_name: napari-organoid-counter._widget:update_and_save_output
+      title: Make results widget
   widgets:
     - command: napari-organoid-counter.organoid_counter_widget
       display_name: Parameters
+    - command: napari-organoid-counter.update_and_save_output
+      display_name: Results
