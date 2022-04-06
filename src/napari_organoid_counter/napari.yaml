@@ -2,14 +2,9 @@ name: napari-organoid-counter
 display_name: napari OrganoidCounter
 contributions:
   commands:
-    - id: napari-organoid-counter.organoid_counter_widget
-      python_name: napari_organoid_counter._widget:organoid_counter_widget
-      title: Make parameter widget
-    - id: napari-organoid-counter.update_and_save_output
-      python_name: napari-organoid-counter._widget:update_and_save_output
-      title: Make results widget
+    - id: napari-organoid-counter.OrganoidCounterWidget
+      python_name: napari_organoid_counter._widget:OrganoidCounterWidget
+      title: Make organoid counter widget
   widgets:
-    - command: napari-organoid-counter.organoid_counter_widget
-      display_name: Parameters
-    - command: napari-organoid-counter.update_and_save_output
-      display_name: Results
+    - command: napari-organoid-counter.OrganoidCounterWidget
+      display_name: Organoid-Counter

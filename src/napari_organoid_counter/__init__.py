@@ -3,4 +3,4 @@ try:
 except ImportError:
     __version__ = "unknown"
 
-from ._widget import organoid_counter_widget, update_and_save_output
+from ._widget import OrganoidCounterWidget
