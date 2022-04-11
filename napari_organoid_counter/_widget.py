@@ -219,8 +219,6 @@ class OrganoidCounterWidget(QWidget):
                                             self.min_diameter,
                                             self.sigma)
             _, _, bboxes = setup_bboxes(segmentation)
-            #img_data = add_text_to_img(img_data, len(bboxes))
-            #self.viewer.layers[self.image_layer_name].data = img_data
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
             seg_layer_name = 'Organoids '+self.image_layer_name
@@ -251,13 +249,13 @@ class OrganoidCounterWidget(QWidget):
         self.image_layer_name = self.image_layer_selection.currentText()
 
     def _on_update_click(self):
-        selected_layer_name = self.output_layer_selection.currentText()
-        bboxes = self.viewer.layers[selected_layer_name].data
-        new_text = 'Number of detected organoids: '+str(len(bboxes))
-        self.organoid_number_label.setText(new_text)
-        '''
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else:
+            selected_layer_name = self.output_layer_selection.currentText()
+            bboxes = self.viewer.layers[selected_layer_name].data
+            new_text = 'Number of detected organoids: '+str(len(bboxes))
+            self.organoid_number_label.setText(new_text)
+        '''
             self._preprocess()
             img_data = self.viewer.layers[self.image_layer_name].data # get pre-processed image!!!
             bboxes = self.viewer.layers['Organoids '+self.image_layer_name].data
@@ -274,7 +272,7 @@ class OrganoidCounterWidget(QWidget):
         self.sigma=2
         self.sigma_slider.setValue(self.sigma)
         if self.image_layer_name:
-            # reset to original image and **TO-DO** remove layer of results
+            # reset to original image
             self.viewer.layers[self.image_layer_name].data = self.original_images[self.image_layer_name]
             self.viewer.layers[self.image_layer_name].contrast_limits = self.original_contrast[self.image_layer_name]
 
