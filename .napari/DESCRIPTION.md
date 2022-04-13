@@ -8,6 +8,12 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images had been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
 
+## Dependencies
+
+```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> plugin for reading and processing CZI images.
+
+[1] AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
+
 ## Quickstart
 
 The use of the napari-organoid-counter plugin is straightforward. After loading the image or images you wish to process into the napari viewer, you must first pre-process them by clicking the _Preprocess_ button and the image layer will automatically be updated with the result. Next, you can adjust any of the parameters used in the algorithm (downsamppling, minimum organoid diamtere and sigma, i.e. kernel sixe for the Cannny Edge Detection algorithm) by using the corresponding sliders. By clicking the _Run Organoid Counter_ button the detection algorithm will run and a new shapes layer will be added to the viewer, with bounding boxes are placed around the detected organoid. You can add, edit or remove boxes using the _layer controls_ window and update the _Number of detected organoids_ displayed by clicking the _Update Number_ button. 

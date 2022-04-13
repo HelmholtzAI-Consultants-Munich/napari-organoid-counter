@@ -47,6 +47,12 @@ the coverage at least stays the same before you submit a pull request.
 Distributed under the terms of the [MIT] license,
 "napari-organoid-counter" is free and open source software
 
+## Dependencies
+
+```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> plugin for reading and processing CZI images.
+
+[1] AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
+
 ## Issues
 
 If you encounter any problems, please [file an issue] along with a detailed description.
