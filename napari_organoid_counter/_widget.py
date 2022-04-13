@@ -11,6 +11,9 @@ from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QWidget, QSlid
 from napari.utils.notifications import show_info
 from ._orgacount import *
 
+import warnings
+warnings.filterwarnings("ignore")
+
 class OrganoidCounterWidget(QWidget):
     # the widget of the organoid counter - documentation to be added
     def __init__(self, 
@@ -39,6 +42,7 @@ class OrganoidCounterWidget(QWidget):
             self.image_layer_selection.addItem(name)
         #self.image_layer_selection.setItemText(self.image_layer_name)
         self.image_layer_selection.currentIndexChanged.connect(self._image_selection_changed)
+        self.cur_shapes = None
         
         preprocess_btn = QPushButton("Preprocess")
         preprocess_btn.clicked.connect(self._on_preprocess_click)
@@ -184,7 +188,7 @@ class OrganoidCounterWidget(QWidget):
                 self.image_layer_selection.removeItem(item_id)
                 del self.original_images[removed_layer]
                 del self.original_contrast[removed_layer]
-
+            # do the same with shapes layers
             self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
             current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
             for layer_name in self.shape_layer_names:
@@ -232,6 +236,7 @@ class OrganoidCounterWidget(QWidget):
                                         edge_color='magenta',
                                         shape_type='rectangle',
                                         edge_width=12) # warning generated here
+            self.cur_shapes = seg_layer_name
 
     def _on_downsampling_changed(self):
         self.downsampling = self.downsampling_slider.value()
@@ -251,8 +256,8 @@ class OrganoidCounterWidget(QWidget):
     def _on_update_click(self):
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else:
-            selected_layer_name = self.output_layer_selection.currentText()
-            bboxes = self.viewer.layers[selected_layer_name].data
+            #selected_layer_name = self.output_layer_selection.currentText()
+            bboxes = self.viewer.layers[self.cur_shapes].data
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
         '''
