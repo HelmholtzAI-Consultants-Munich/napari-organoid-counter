@@ -7,7 +7,9 @@
 [![codecov](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter/branch/main/graph/badge.svg)](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 
-A plugin to automatically count organoids
+A napari plugin to automatically count lung organoids from microscopy imaging data. The original implementation can be found in the [Organoid-Counting](https://github.com/HelmholtzAI-Consultants-Munich/Organoid-Counting) repository, which has been adapted here to work as a napari plugin.
+
+![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin.gif)
 
 ----------------------------------
 
