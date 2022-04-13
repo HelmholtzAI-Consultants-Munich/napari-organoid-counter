@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/napari-organoid-counter.svg?color=green)](https://pypi.org/project/napari-organoid-counter)
 
 
-[![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg | https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-380/ | https://www.python.org/downloads/release/python-390/)
+[![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg, https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-380/, https://www.python.org/downloads/release/python-390/)
 [![Python 3.8](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
 
 [![tests](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/workflows/tests/badge.svg)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/actions)
