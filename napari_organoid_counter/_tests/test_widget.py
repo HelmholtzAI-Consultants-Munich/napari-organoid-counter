@@ -67,14 +67,14 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert my_widget.sigma == 2
     assert my_widget.sigma_slider.value() == 2
 
-    my_widget._on_screenshot_click()
-    '''TO DO'''
+    #my_widget._on_screenshot_click()
+    #'''TO DO'''
 
-    my_widget._on_save_csv_click()
-    '''TO DO'''
+    #my_widget._on_save_csv_click()
+    #'''TO DO'''
 
-    my_widget._on_save_json_click()
-    '''TO DO'''
+    #my_widget._on_save_json_click()
+    #'''TO DO'''
 
     my_widget._get_layer_names()
     layer_names = [layer.name for layer in my_widget.layers if type(layer)==layers.Image]
