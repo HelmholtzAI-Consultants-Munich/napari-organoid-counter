@@ -77,10 +77,10 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     #'''TO DO'''
 
     my_widget._get_layer_names()
-    layer_names = [layer.name for layer in my_widget.layers if type(layer)==layers.Image]
+    layer_names = [layer.name for layer in my_widget.viewer.layers if type(layer)==layers.Image]
     assert len(layer_names) == 1
     assert layer_names[0] == 'Test'
     my_widget._get_layer_names(layer_type=layers.Shapes)
-    layer_names = [layer.name for layer in my_widget.layers if type(layer)==layers.Shapes]
+    layer_names = [layer.name for layer in my_widget.viewer.layers if type(layer)==layers.Shapes]
     assert len(layer_names) == 1
     assert layer_names[0] == 'Organoids Test'
