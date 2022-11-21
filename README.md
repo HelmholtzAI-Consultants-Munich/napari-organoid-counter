@@ -1,6 +1,6 @@
 # napari-organoid-counter
 
-![stability-unstable](https://img.shields.io/badge/stability-unstable-yellow.svg)
+![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
 [![License](https://img.shields.io/pypi/l/napari-organoid-counter.svg?color=green)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-organoid-counter.svg?color=green)](https://pypi.org/project/napari-organoid-counter)
@@ -9,7 +9,7 @@
 [![codecov](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter/branch/main/graph/badge.svg)](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. The original implementation can be found in the [Organoid-Counting](https://github.com/HelmholtzAI-Consultants-Munich/Organoid-Counting) repository, which has been adapted here to work as a napari plugin.
+A napari plugin to automatically count lung organoids from microscopy imaging data. *Note that this only works for one channel grayscale images.* The original implementation can be found in the [Organoid-Counting](https://github.com/HelmholtzAI-Consultants-Munich/Organoid-Counting) repository, which has been adapted here to work as a napari plugin.
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin.gif)
 
