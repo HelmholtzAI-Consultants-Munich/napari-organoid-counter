@@ -9,7 +9,7 @@ from qtpy.QtWidgets import QWidget, QPushButton, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QWidget, QSlider, QLabel, QFileDialog)
 from napari.utils.notifications import show_info
-from ._orgacount import *
+from ._orgacount import OrganoiDL, apply_normalization
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -170,6 +170,8 @@ class OrganoidCounterWidget(QWidget):
         self.layout().addWidget(self.reset_box)
         self.layout().addWidget(self.save_box)
 
+        self.organoiDL = OrganoiDL()
+        
         @self.viewer.layers.events.connect
         def _added_layer(arg): 
             # get image layers names
@@ -216,13 +218,10 @@ class OrganoidCounterWidget(QWidget):
         else:
             self._preprocess()
             img_data = self.viewer.layers[self.image_layer_name].data
-            img_scale = self.viewer.layers[self.image_layer_name].scale
-            segmentation = count_organoids(img_data, 
-                                            img_scale, 
-                                            self.downsampling, 
-                                            self.min_diameter,
-                                            self.sigma)
-            _, _, bboxes = setup_bboxes(segmentation)
+            #img_scale = self.viewer.layers[self.image_layer_name].scale
+  
+            bboxes = self.organoiDL.run(img_data)
+            
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
             seg_layer_name = 'Organoids '+self.image_layer_name
