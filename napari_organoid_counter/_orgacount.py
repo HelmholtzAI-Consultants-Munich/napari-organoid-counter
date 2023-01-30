@@ -46,14 +46,13 @@ def apply_normalization(img):
 class frcnn(nn.Module):
     def __init__(self, num_classes,rpn_score_thresh=0,box_score_thresh=0.05):
         """
-      
         A FRCNN module performs below operations:
         - Loads the pretrained FasterRCNN model.
-        
       """
         super(frcnn, self).__init__()
         self.num_classes = num_classes
-        self.model = detection.fasterrcnn_resnet50_fpn(pretrained=True,rpn_score_thresh = rpn_score_thresh,box_score_thresh = box_score_thresh)        
+        self.model = detection.fasterrcnn_resnet50_fpn(pretrained=True, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)
+        #self.model = detection.fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)        
         # get number of input features for the classifier
         self.in_features = self.model.roi_heads.box_predictor.cls_score.in_features
         # replace the pre-trained head with a new one
@@ -66,13 +65,13 @@ class frcnn(nn.Module):
 
 class OrganoiDL():
     def __init__(self,
-                window_size = 512,
-                window_overlap = 0.5,
+                window_size = 256,
+                window_overlap = 1,
                 model_checkpoint='model-weights/tst.ckpt'):
         super().__init__()
         
         self.window_size = window_size
-        #self.window_overlap = window_overlap
+        self.window_overlap = window_overlap
         self.step = round(self.window_size * window_overlap)
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -91,55 +90,65 @@ class OrganoiDL():
                 break
         return is_there
 
-    def run(self, img):
-        pred_bboxes = []
-        rescale_factor = 0.5
-        height, width = img.shape
+    def _pad(self, img, i, j, height, width):
+        # crop
+        if (i+self.window_size) < height and (j+self.window_size) < width:
+            img_crop = img[i:(i+self.window_size), j:(j+self.window_size), :]
+        elif (i+self.window_size) >= height and (j+self.window_size) < width:
+            pad_size = (i+self.window_size) - height
+            img_crop = img[i:, j:(j+self.window_size), :]
+            img_crop = np.pad(img_crop, ((0, pad_size), (0,0), (0,0)))
+        elif (j+self.window_size) >= width and (i+self.window_size) < height:
+            pad_size = (j+self.window_size) - width
+            img_crop = img[i:(i+self.window_size), j:, :]
+            img_crop = np.pad(img_crop, ((0,0), (0, pad_size), (0,0)))
+        else:
+            pad_size_i = (i+self.window_size) - height
+            pad_size_j = (j+self.window_size) - width
+            img_crop = img[i:, j:, :]
+            img_crop = np.pad(img_crop, ((0, pad_size_i), (0, pad_size_j), (0,0)))
+        return img_crop
 
-        for i in range(0, height, self.step):
-            for j in range(0, width, self.step):
+    def run(self, img, downsampling = 2, min_diameter = 30, confidence = 0.05,):
+        
+        rescale_factor = 1 / downsampling # default = 0.5
+        img = rescale(img, rescale_factor)
+        img = gray2rgb(img) #img is HxWxC
+        
+        pred_bboxes = []
+        height, width = img.shape[0], img.shape[1]
+        for i in range(0, 3*self.step, self.step): #(0, height, self.step):
+            for j in range(3*self.step, 5*self.step, self.step): #(0, width, self.step):
+                print('i: ', i, 'j:', j)
+                img_crop = self._pad(img, i, j, height, width)
                 
-                # crop
-                if (i+self.window_size) < height and (j+self.window_size) < width:
-                    img_crop = img[i:(i+self.window_size), j:(j+self.window_size)]
-                elif (i+self.window_size) >= height and (j+self.window_size) < width:
-                    pad_size = (i+self.window_size) - height
-                    img_crop = img[i:, j:(j+self.window_size)]
-                    img_crop = np.pad(img_crop, ((0, pad_size), (0,0)))
-                elif (j+self.window_size) >= width and (i+self.window_size) < height:
-                    pad_size = (j+self.window_size) - width
-                    img_crop = img[i:(i+self.window_size), j:]
-                    img_crop = np.pad(img_crop, ((0,0), (0, pad_size)))
-                else:
-                    pad_size_i = (i+self.window_size) - height
-                    pad_size_j = (j+self.window_size) - width
-                    img_crop = img[i:, j:]
-                    img_crop = np.pad(img_crop, ((0, pad_size_i), (0, pad_size_j)))
-                    
                 # convert to tensor
-                img_crop = (img_crop-np.min(img_crop))/(np.max(img_crop)-np.min(img_crop))
-                img_crop = (255*img_crop).astype(np.uint8)
-                img_crop = rescale(img_crop, rescale_factor)
-                img_crop = gray2rgb(img_crop)
                 img_crop = self.transfroms(img_crop)
                 img_crop = torch.unsqueeze(img_crop, axis=0)
                 img_crop = img_crop.to(self.device)
                 
                 # get predictions
                 output = self.model(img_crop.float())
-                preds = output[0]['boxes'].cpu().detach() 
+                preds = output[0]['boxes'].cpu().detach()
                 scores = output[0]['scores'].cpu().detach().numpy()
                 if preds.size(0)==0: continue
                 else:
                     for bbox_id in range(preds.size(0)):
                         bbox = preds[bbox_id]
                         y1, x1, y2, x2 = bbox # predictions from model will be in form x1,y1,x2,y2
-                        x1_real = (x1/rescale_factor) + i
-                        x2_real = (x2/rescale_factor) + i
-                        y1_real = (y1/rescale_factor) + j
-                        y2_real = (y2/rescale_factor) + j
+                        x1_real = (x1.item() + i) // rescale_factor
+                        x2_real = (x2.item() + i) // rescale_factor
+                        y1_real = (y1.item() + j) // rescale_factor
+                        y2_real = (y2.item() + j) // rescale_factor
                         if not self.is_bbox_there(pred_bboxes, (x1_real, y1_real, x2_real, y2_real)):
                             pred_bboxes.append([x1_real, y1_real, x2_real, y2_real])
+
+        for idx, it in enumerate(pred_bboxes):
+            x1_real, y1_real, x2_real, y2_real = pred_bboxes[idx]
+            pred_bboxes[idx] = np.array([[x1_real, y1_real],
+                                [x2_real, y1_real],
+                                [x1_real, y2_real],
+                                [x2_real, y2_real]])
         return pred_bboxes
 
 

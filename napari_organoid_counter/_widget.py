@@ -18,9 +18,9 @@ class OrganoidCounterWidget(QWidget):
     # the widget of the organoid counter - documentation to be added
     def __init__(self, 
                 napari_viewer,
-                downsampling=4,
+                downsampling=2,
                 min_diameter=30,
-                sigma=2):
+                confidence=0.05):
         super().__init__()
         self.viewer = napari_viewer
         # this has to be changed if we later add more images it needs to be updated 
@@ -62,7 +62,7 @@ class OrganoidCounterWidget(QWidget):
         self.downsampling_slider.setValue(self.downsampling)
         self.downsampling_slider.valueChanged.connect(self._on_downsampling_changed)
 
-        self.downsampling_label = QLabel('Downsampling: 4', self)
+        self.downsampling_label = QLabel('Downsampling: 2', self)
         self.downsampling_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         #self.downsampling_label.setMinimumWidth(80)
 
@@ -90,23 +90,23 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_box.layout().addSpacing(15)
         self.min_diameter_box.layout().addWidget(self.min_diameter_slider)
 
-        self.sigma = sigma
-        self.sigma_slider = QSlider(Qt.Horizontal)
-        self.sigma_slider.setMinimum(1)
-        self.sigma_slider.setMaximum(10)
-        self.sigma_slider.setSingleStep(1)
-        self.sigma_slider.setValue(2)
-        self.sigma_slider.valueChanged.connect(self._on_sigma_changed)
+        self.confidence = confidence
+        self.confidence_slider = QSlider(Qt.Horizontal)
+        self.confidence_slider.setMinimum(0)
+        self.confidence_slider.setMaximum(1)
+        self.confidence_slider.setSingleStep(0.05)
+        self.confidence_slider.setValue(0.05)
+        self.confidence_slider.valueChanged.connect(self._on_confidence_changed)
 
-        self.sigma_label = QLabel('Sigma: 2', self)
-        self.sigma_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        self.confidence_label = QLabel('Confidence: 0.05', self)
+        self.confidence_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         #self.min_diameter_label.setMinimumWidth(80)
 
-        self.sigma_box = QWidget()
-        self.sigma_box.setLayout(QHBoxLayout())
-        self.sigma_box.layout().addWidget(self.sigma_label)
-        self.sigma_box.layout().addSpacing(15)
-        self.sigma_box.layout().addWidget(self.sigma_slider)
+        self.confidence_box = QWidget()
+        self.confidence_box.setLayout(QHBoxLayout())
+        self.confidence_box.layout().addWidget(self.confidence_label)
+        self.confidence_box.layout().addSpacing(15)
+        self.confidence_box.layout().addWidget(self.confidence_slider)
 
         run_btn = QPushButton("Run Organoid Counter")
         run_btn.clicked.connect(self._on_run_click)
@@ -164,7 +164,7 @@ class OrganoidCounterWidget(QWidget):
         self.layout().addWidget(self.input_box)
         self.layout().addWidget(self.downsampling_box)
         self.layout().addWidget(self.min_diameter_box)
-        self.layout().addWidget(self.sigma_box)
+        self.layout().addWidget(self.confidence_box)
         self.layout().addWidget(run_btn)
         self.layout().addWidget(self.display_res_box)
         self.layout().addWidget(self.reset_box)
@@ -220,7 +220,10 @@ class OrganoidCounterWidget(QWidget):
             img_data = self.viewer.layers[self.image_layer_name].data
             #img_scale = self.viewer.layers[self.image_layer_name].scale
   
-            bboxes = self.organoiDL.run(img_data)
+            bboxes = self.organoiDL.run(img_data, 
+                                        self.downsampling,
+                                        self.min_diameter,
+                                        self.confidence)
             
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
@@ -245,9 +248,9 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter = self.min_diameter_slider.value()
         self.min_diameter_label.setText('Min. Diameter: '+str(self.min_diameter))
 
-    def _on_sigma_changed(self):
-        self.sigma = self.sigma_slider.value()
-        self.sigma_label.setText('Sigma: '+str(self.sigma))
+    def _on_confidence_changed(self):
+        self.confidence = self.confidence_slider.value()
+        self.confidence_label.setText('Confidence: '+str(self.confidence))
 
     def _image_selection_changed(self):
         self.image_layer_name = self.image_layer_selection.currentText()
@@ -269,12 +272,12 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_reset_click(self):
         # reset params
-        self.downsampling = 4
+        self.downsampling = 2
         self.downsampling_slider.setValue(self.downsampling)
         self.min_diameter=30
         self.min_diameter_slider.setValue(self.min_diameter)
-        self.sigma=2
-        self.sigma_slider.setValue(self.sigma)
+        self.confidence=0.05
+        self.confidence_slider.setValue(self.confidence)
         if self.image_layer_name:
             # reset to original image
             self.viewer.layers[self.image_layer_name].data = self.original_images[self.image_layer_name]

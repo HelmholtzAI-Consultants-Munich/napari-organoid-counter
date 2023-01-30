@@ -1,5 +1,5 @@
 model-weights/
-tess.py
+test_img/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
