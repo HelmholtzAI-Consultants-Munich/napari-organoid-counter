@@ -117,9 +117,8 @@ class OrganoiDL():
         
         pred_bboxes = []
         height, width = img.shape[0], img.shape[1]
-        for i in range(0, 3*self.step, self.step): #(0, height, self.step):
-            for j in range(3*self.step, 5*self.step, self.step): #(0, width, self.step):
-                print('i: ', i, 'j:', j)
+        for i in range(0, height, self.step):
+            for j in range(0, width, self.step):
                 img_crop = self._pad(img, i, j, height, width)
                 
                 # convert to tensor
@@ -146,9 +145,9 @@ class OrganoiDL():
         for idx, it in enumerate(pred_bboxes):
             x1_real, y1_real, x2_real, y2_real = pred_bboxes[idx]
             pred_bboxes[idx] = np.array([[x1_real, y1_real],
-                                [x2_real, y1_real],
-                                [x1_real, y2_real],
-                                [x2_real, y2_real]])
+                                        [x1_real, y2_real],
+                                        [x2_real, y2_real],
+                                        [x2_real, y1_real]])
         return pred_bboxes
 
 
