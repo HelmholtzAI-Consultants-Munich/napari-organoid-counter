@@ -216,7 +216,6 @@ class OrganoidCounterWidget(QWidget):
     def _on_run_click(self):
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else:
-            self._preprocess()
             img_data = self.viewer.layers[self.image_layer_name].data
             #img_scale = self.viewer.layers[self.image_layer_name].scale
   
@@ -224,7 +223,7 @@ class OrganoidCounterWidget(QWidget):
                                         self.downsampling,
                                         self.min_diameter,
                                         self.confidence)
-            
+            self._preprocess() # preprocess if not done so already to improve visualisation
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
             seg_layer_name = 'Organoids '+self.image_layer_name

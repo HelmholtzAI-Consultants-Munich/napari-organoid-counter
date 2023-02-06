@@ -90,7 +90,7 @@ class OrganoiDL():
                 break
         return is_there
 
-    def _pad(self, img, i, j, height, width):
+    def _pad_and_crop(self, img, i, j, height, width):
         # crop
         if (i+self.window_size) < height and (j+self.window_size) < width:
             img_crop = img[i:(i+self.window_size), j:(j+self.window_size), :]
@@ -109,18 +109,15 @@ class OrganoiDL():
             img_crop = np.pad(img_crop, ((0, pad_size_i), (0, pad_size_j), (0,0)))
         return img_crop
 
-    def run(self, img, downsampling = 2, min_diameter = 30, confidence = 0.05,):
-        
-        rescale_factor = 1 / downsampling # default = 0.5
-        img = rescale(img, rescale_factor)
-        img = gray2rgb(img) #img is HxWxC
-        
+    def run_sliding_window(self, img, height, width):
         pred_bboxes = []
-        height, width = img.shape[0], img.shape[1]
+        # loop through patches
         for i in range(0, height, self.step):
             for j in range(0, width, self.step):
-                img_crop = self._pad(img, i, j, height, width)
-                
+                img_crop = self._pad_and_crop(img, i, j, height, width)
+                img_crop = (img_crop-np.min(img_crop))/(np.max(img_crop)-np.min(img_crop))
+                img_crop = (255*img_crop).astype(np.uint8)
+
                 # convert to tensor
                 img_crop = self.transfroms(img_crop)
                 img_crop = torch.unsqueeze(img_crop, axis=0)
@@ -141,7 +138,19 @@ class OrganoiDL():
                         y2_real = (y2.item() + j) // rescale_factor
                         if not self.is_bbox_there(pred_bboxes, (x1_real, y1_real, x2_real, y2_real)):
                             pred_bboxes.append([x1_real, y1_real, x2_real, y2_real])
+        return pred_bboxes
 
+    def run(self, img, downsampling = 2, min_diameter = 30, confidence = 0.05,):
+        
+        # resize image and convert to rgb as network expects
+        rescale_factor = 1 / downsampling # default = 0.5
+        img = rescale(img, rescale_factor, preserve_range=True)
+        img = gray2rgb(img) #img is HxWxC
+
+        # run sliding window
+        pred_bboxes = self.run_sliding_window(img, img.shape[0], img.shape[1])
+
+        # convert way boxes are stored so they are correctly represented in napari
         for idx, it in enumerate(pred_bboxes):
             x1_real, y1_real, x2_real, y2_real = pred_bboxes[idx]
             pred_bboxes[idx] = np.array([[x1_real, y1_real],
