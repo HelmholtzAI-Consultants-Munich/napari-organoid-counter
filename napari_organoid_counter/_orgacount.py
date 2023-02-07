@@ -109,7 +109,7 @@ class OrganoiDL():
             img_crop = np.pad(img_crop, ((0, pad_size_i), (0, pad_size_j), (0,0)))
         return img_crop
 
-    def run_sliding_window(self, img, height, width):
+    def run_sliding_window(self, img, height, width, rescale_factor):
         pred_bboxes = []
         # loop through patches
         for i in range(0, height, self.step):
@@ -148,7 +148,7 @@ class OrganoiDL():
         img = gray2rgb(img) #img is HxWxC
 
         # run sliding window
-        pred_bboxes = self.run_sliding_window(img, img.shape[0], img.shape[1])
+        pred_bboxes = self.run_sliding_window(img, img.shape[0], img.shape[1], rescale_factor)
 
         # convert way boxes are stored so they are correctly represented in napari
         for idx, it in enumerate(pred_bboxes):
