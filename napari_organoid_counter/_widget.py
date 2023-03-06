@@ -9,6 +9,7 @@ from qtpy.QtWidgets import QWidget, QPushButton, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QWidget, QSlider, QLabel, QFileDialog)
 from napari.utils.notifications import show_info
+import math
 from ._orgacount import OrganoiDL, apply_normalization
 
 import warnings
@@ -20,7 +21,7 @@ class OrganoidCounterWidget(QWidget):
                 napari_viewer,
                 downsampling=2,
                 min_diameter=30,
-                confidence=0.05):
+                confidence=0.5):
         super().__init__()
         self.viewer = napari_viewer
         # this has to be changed if we later add more images it needs to be updated 
@@ -93,12 +94,12 @@ class OrganoidCounterWidget(QWidget):
         self.confidence = confidence
         self.confidence_slider = QSlider(Qt.Horizontal)
         self.confidence_slider.setMinimum(0)
-        self.confidence_slider.setMaximum(1)
-        self.confidence_slider.setSingleStep(0.05)
-        self.confidence_slider.setValue(0.05)
+        self.confidence_slider.setMaximum(100)
+        self.confidence_slider.setSingleStep(5)
+        self.confidence_slider.setValue(50)
         self.confidence_slider.valueChanged.connect(self._on_confidence_changed)
 
-        self.confidence_label = QLabel('Confidence: 0.05', self)
+        self.confidence_label = QLabel('Confidence: 0.5', self)
         self.confidence_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         #self.min_diameter_label.setMinimumWidth(80)
 
@@ -222,7 +223,9 @@ class OrganoidCounterWidget(QWidget):
             bboxes = self.organoiDL.run(img_data, 
                                         self.downsampling,
                                         self.min_diameter,
-                                        self.confidence)
+                                        self.confidence,
+                                        window_size = 2048,
+                                        window_overlap = 0.5)
             self._preprocess() # preprocess if not done so already to improve visualisation
             new_text = 'Number of detected organoids: '+str(len(bboxes))
             self.organoid_number_label.setText(new_text)
@@ -248,7 +251,7 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_label.setText('Min. Diameter: '+str(self.min_diameter))
 
     def _on_confidence_changed(self):
-        self.confidence = self.confidence_slider.value()
+        self.confidence = self.confidence_slider.value()/100
         self.confidence_label.setText('Confidence: '+str(self.confidence))
 
     def _image_selection_changed(self):
