@@ -21,7 +21,7 @@ class OrganoidCounterWidget(QWidget):
     # the widget of the organoid counter - documentation to be added
     def __init__(self, 
                 napari_viewer,
-                model_path: str = 'model-weights/model_eva_v0.ckpt',
+                model_path: str = 'model-weights/model_v1.ckpt',
                 window_sizes: List = [2048],
                 downsampling: List = [2],
                 min_diameter: int = 30,
@@ -103,13 +103,7 @@ class OrganoidCounterWidget(QWidget):
                                       edge_color='magenta',
                                       shape_type='rectangle',
                                       edge_width=12)
-            self.viewer.layers[seg_layer_name].data = bboxes
-            '''
-            self.viewer.layers[seg_layer_name].current_edge_width = 12
-            #self.viewer.layers[seg_layer_name].edge_width[:] = 12 #TypeError: can only assign an iterable
-            self.viewer.layers[seg_layer_name].refresh()
-            print(self.viewer.layers[seg_layer_name].edge_width)
-            '''
+            self.viewer.layers[seg_layer_name].data = bboxes # hack to get edge_width stay the same!
 
         else:
             if len(bboxes)==0: 
@@ -122,7 +116,8 @@ class OrganoidCounterWidget(QWidget):
                                         edge_color='magenta',
                                         shape_type='rectangle',
                                         edge_width=12) # warning generated here
-        self.viewer.layers[seg_layer_name].current_edge_width = 12
+                
+        self.viewer.layers[seg_layer_name].current_edge_width = 12 # so edge width is the same when users annotate - doesnt' fix new preds being added!
         self.cur_shapes = seg_layer_name
 
     def _on_preprocess_click(self):
@@ -130,42 +125,52 @@ class OrganoidCounterWidget(QWidget):
         else: self._preprocess()
 
     def _on_run_click(self):
-
+        # check if model has been loaded
         if self.organoiDL is None:
             if os.path.isfile(self.model_path):
                 self.organoiDL = OrganoiDL(model_checkpoint=self.model_path)
             else:
                 show_info('Make sure to select the correct model path!')
                 return
-        
+        # and if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
             return
-
+        # make sure the number of windows and downsamplings are the same
         if len(self.window_sizes) != len(self.downsampling): 
             show_info('Keep number of window sizes and downsampling the same and try again!')
             return
-
+        # get the current image and scle in um
         img_data = self.viewer.layers[self.image_layer_name].data
         img_scale = self.viewer.layers[self.image_layer_name].scale
-        
+        # check that image is grayscale
+        if len(img_data.shape) > 2:
+            show_info('Only grayscale images currently supported. Try a different image or process it first and try again!')
+            return
+        # run inference
         self.organoiDL.run(img_data, 
                            img_scale,
                            self.window_sizes,
                            self.downsampling,
                            window_overlap = 1)# 0.5)
+        # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes = self.organoiDL.apply_params(self.confidence, self.min_diameter)
-        
-        self._preprocess() # preprocess if not done so already to improve visualisation
+        # preprocess the image if not done so already to improve visualisation
+        self._preprocess() 
+        # update the viewer with the new bboxes
         self._update_vis_bboxes(bboxes)
 
     def _on_choose_model_clicked(self):
+        # called when the user hits the 'browse' button to select a model
         fd = QFileDialog()
         fd.setFileMode(QFileDialog.AnyFile)
         if fd.exec_():
             self.model_path = fd.selectedFiles()[0]
         self.model_textbox.setText(self.model_path)
-        self.organoiDL = OrganoiDL(model_checkpoint=self.model_path)
+        # initialise organoiDL instance with the model path chosen
+        try:
+            self.organoiDL = OrganoiDL(model_checkpoint=self.model_path)
+        except: show_info('Could not load model - make sure you are loading the correct file (with .ckpt ending)')
 
     def _on_window_sizes_changed(self):
         new_window_sizes = self.window_sizes_textbox.text()
