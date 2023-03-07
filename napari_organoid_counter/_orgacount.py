@@ -1,197 +1,98 @@
-import numpy as np
-from skimage.transform import rescale
-from skimage.color import gray2rgb
+
 import torch
-import torch.nn as nn
 from torchvision.transforms import ToTensor
-from torchvision.models import detection
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-
-def get_iou(a, b, epsilon=1e-5, intersection_check=False):
-    x1 = max(a[0], b[0])
-    y1 = max(a[1], b[1])
-    x2 = min(a[2], b[2])
-    y2 = min(a[3], b[3])
-
-    width =  (x2 - x1)
-    height = (y2 - y1)
-
-    if (width < 0) or (height < 0):
-        if intersection_check:
-            return 0.0, False
-        else:
-            return 0.0
-    area_overlap = width * height
-
-    area_a = (a[2] - a[0]) * (a[3] - a[1])
-    area_b = (b[2] - b[0]) * (b[3] - b[1])
-    area_combined = area_a + area_b - area_overlap
-
-    iou = area_overlap / (area_combined + epsilon)
-    if intersection_check:
-        return iou, bool(area_overlap)
-    else:
-        return iou
-
-def apply_normalization(img):
-    img = np.squeeze(img) #self.viewer.layers[self.image_layer_name].data)
-    img = img.astype(np.float64)
-    #Normalise and return img to range 0-255
-    img_min = np.min(img) # 31.3125 png 0
-    img_max = np.max(img) # 2899.25 png 178
-    img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
-    return img_norm
-
-
-class frcnn(nn.Module):
-    def __init__(self, num_classes,rpn_score_thresh=0,box_score_thresh=0.05):
-        """
-        A FRCNN module performs below operations:
-        - Loads the pretrained FasterRCNN model.
-      """
-        super(frcnn, self).__init__()
-        self.num_classes = num_classes
-        self.model = detection.fasterrcnn_resnet50_fpn(pretrained=True, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)
-        #self.model = detection.fasterrcnn_resnet50_fpn(weights=FasterRCNN_ResNet50_FPN_Weights.DEFAULT, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)        
-        # get number of input features for the classifier
-        self.in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        # replace the pre-trained head with a new one
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(self.in_features, self.num_classes)
-        
-    def forward(self, x, return_all=False):
-        self.model.eval()
-        return self.model(x)
-
+from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view
 
 class OrganoiDL():
-    def __init__(self,
-                window_size = 256,
-                window_overlap = 1,
-                model_checkpoint='model-weights/tst.ckpt'):
+    def __init__(self, model_checkpoint='model-weights/model_v1.ckpt'):
         super().__init__()
         
-        self.window_size = window_size
-        self.window_overlap = window_overlap
-        self.step = round(self.window_size * window_overlap)
-        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = frcnn(num_classes=2, rpn_score_thresh=0.9, box_score_thresh = 0.85)
+        self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = 0.05)
         ckpt = torch.load(model_checkpoint, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
         self.model = self.model.to(self.device)
         self.transfroms = ToTensor()
 
-    def is_bbox_there(self, pred_bboxes, cur_bbox, thresh = 0.5):
-        is_there = False
-        for bbox in pred_bboxes:
-            iou = get_iou(bbox, cur_bbox)
-            if iou > thresh: 
-                is_there=True
-                break
-        return is_there
+        self.pred_bboxes = None
+        self.pred_scores = None
+        self.img_scale = None
 
-    def _pad_and_crop(self, img, i, j, height, width):
-        # crop
-        if (i+self.window_size) < height and (j+self.window_size) < width:
-            img_crop = img[i:(i+self.window_size), j:(j+self.window_size), :]
-        elif (i+self.window_size) >= height and (j+self.window_size) < width:
-            pad_size = (i+self.window_size) - height
-            img_crop = img[i:, j:(j+self.window_size), :]
-            img_crop = np.pad(img_crop, ((0, pad_size), (0,0), (0,0)))
-        elif (j+self.window_size) >= width and (i+self.window_size) < height:
-            pad_size = (j+self.window_size) - width
-            img_crop = img[i:(i+self.window_size), j:, :]
-            img_crop = np.pad(img_crop, ((0,0), (0, pad_size), (0,0)))
-        else:
-            pad_size_i = (i+self.window_size) - height
-            pad_size_j = (j+self.window_size) - width
-            img_crop = img[i:, j:, :]
-            img_crop = np.pad(img_crop, ((0, pad_size_i), (0, pad_size_j), (0,0)))
-        return img_crop
+    def sliding_window(self, test_img, step, window_size, rescale_factor, pred_bboxes=[], scores_list=[]):
+    
+        img_height, img_width = test_img.size(2), test_img.size(3)
 
-    def run_sliding_window(self, img, height, width, rescale_factor):
-        pred_bboxes = []
-        # loop through patches
-        for i in range(0, height, self.step):
-            for j in range(0, width, self.step):
-                img_crop = self._pad_and_crop(img, i, j, height, width)
-                img_crop = (img_crop-np.min(img_crop))/(np.max(img_crop)-np.min(img_crop))
-                img_crop = (255*img_crop).astype(np.uint8)
-
-                # convert to tensor
-                img_crop = self.transfroms(img_crop)
-                img_crop = torch.unsqueeze(img_crop, axis=0)
-                img_crop = img_crop.to(self.device)
-                
+        for i in range(0, img_height, step):
+            for j in range(0, img_width, step):
+                # crop
+                img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
                 # get predictions
                 output = self.model(img_crop.float())
-                preds = output[0]['boxes'].cpu().detach()
-                scores = output[0]['scores'].cpu().detach().numpy()
+                preds = output[0]['boxes']
                 if preds.size(0)==0: continue
                 else:
                     for bbox_id in range(preds.size(0)):
-                        bbox = preds[bbox_id]
-                        y1, x1, y2, x2 = bbox # predictions from model will be in form x1,y1,x2,y2
-                        x1_real = (x1.item() + i) // rescale_factor
-                        x2_real = (x2.item() + i) // rescale_factor
-                        y1_real = (y1.item() + j) // rescale_factor
-                        y2_real = (y2.item() + j) // rescale_factor
-                        if not self.is_bbox_there(pred_bboxes, (x1_real, y1_real, x2_real, y2_real)):
-                            pred_bboxes.append([x1_real, y1_real, x2_real, y2_real])
-        return pred_bboxes
+                        y1, x1, y2, x2 = preds[bbox_id].cpu().detach() # predictions from model will be in form x1,y1,x2,y2
+                        x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
+                        x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
+                        y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
+                        y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
+                        pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
+                        scores_list.append(output[0]['scores'][bbox_id].cpu().detach())
+        return pred_bboxes, scores_list
 
-    def run(self, img, downsampling = 2, min_diameter = 30, confidence = 0.05,):
+    def run(self, 
+            img, 
+            img_scale,
+            window_sizes,
+            downsampling_sizes,   
+            window_overlap):
         
-        # resize image and convert to rgb as network expects
-        rescale_factor = 1 / downsampling # default = 0.5
-        img = rescale(img, rescale_factor, preserve_range=True)
-        img = gray2rgb(img) #img is HxWxC
+        # run for all window sizes
+        bboxes = []
+        scores = []
 
-        # run sliding window
-        pred_bboxes = self.run_sliding_window(img, img.shape[0], img.shape[1], rescale_factor)
+        self.img_scale = img_scale
 
-        # convert way boxes are stored so they are correctly represented in napari
-        for idx, it in enumerate(pred_bboxes):
+        for window_size, downsampling in zip(window_sizes, downsampling_sizes):
+            # compute the step for the sliding window, based on window overlap
+            rescale_factor = 1 / downsampling
+            # window size after rescaling
+            window_size = round(window_size * rescale_factor)
+            step = round(window_size * window_overlap)
+            # prepare image for model - norm, tensor, etc.
+            ready_img = prepare_img(img, step, window_size, rescale_factor, self.transfroms , self.device)
+            bboxes, scores = self.sliding_window(ready_img, step, window_size, rescale_factor, bboxes, scores)
+
+        bboxes = torch.stack(bboxes)
+        scores = torch.stack(scores)
+        # apply NMS to remove overlaping boxes
+        self.pred_bboxes, self.pred_scores = apply_nms(bboxes, scores)
+
+    def apply_params(self, confidence, min_diameter_um):
+        pred_bboxes = self.apply_confidence_thresh(confidence)
+        pred_bboxes = self.filter_small_organoids(min_diameter_um, pred_bboxes)
+        pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
+        return pred_bboxes
+
+    def apply_confidence_thresh(self, confidence):
+        if self.pred_bboxes is None: return None
+        keep = (self.pred_scores>confidence).nonzero(as_tuple=True)[0]
+        result_bboxes = self.pred_bboxes[keep]
+        return result_bboxes
+
+    def filter_small_organoids(self, min_diameter_um, pred_bboxes):
+        if pred_bboxes is None: return None
+        if len(pred_bboxes)==0: return None
+        min_diameter_x = min_diameter_um / self.img_scale[0]
+        min_diameter_y = min_diameter_um / self.img_scale[1]
+        keep = []
+        for idx in range(len(pred_bboxes)):
             x1_real, y1_real, x2_real, y2_real = pred_bboxes[idx]
-            pred_bboxes[idx] = np.array([[x1_real, y1_real],
-                                        [x1_real, y2_real],
-                                        [x2_real, y2_real],
-                                        [x2_real, y1_real]])
+            dx = abs(x1_real - x2_real)
+            dy = abs(y1_real - y2_real)
+            if dx >= min_diameter_x and dy >= min_diameter_y: keep.append(idx) 
+        pred_bboxes = pred_bboxes[keep]
         return pred_bboxes
 
 
-
-'''
-def add_text_to_img(img, organoid_number, downsampling=1):
-    """
-    Adds the number of organoids detected as text to the image and returns it
-    Parameters
-    ----------
-    img: numpy array
-        The image on which text needs to be added
-    organoid_number: int
-        The number of organoids detected - to be added as text 
-    downsampling: int
-        the downsampling of the image will affect the text size
-    Returns
-    -------
-    img: numpy array
-        The image with text added to it
-    """
-    # define thickness and font size of the text depending on the downsampling rate
-    thickness=2
-    if downsampling==1: 
-        fontSize = 10 #6
-        thickness = 12 #4
-    elif downsampling<4: fontSize = 3
-    else: fontSize = 2
-    # add text to image
-    img = cv2.putText(img, 
-        'Organoids: '+str(organoid_number), 
-        org=(round(img.shape[1]*0.05), round(img.shape[0]*0.1)),
-        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-        fontScale=fontSize,
-        thickness=thickness,
-        color=(255))
-    return img
-'''
