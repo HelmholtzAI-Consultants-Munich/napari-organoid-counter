@@ -29,8 +29,11 @@ def reader_function(path: str) -> layers.Shapes:
                                 [x2, y2],
                                 [x2, y1]]))
     labels_name = 'Labels-'+Path(path).stem
+    #properties = #to do
+    text_params = {'label:{label}'}
     layer_attributes = {'name': labels_name,
                         'scale': scale,
+                        'text': text_params,
                         'face_color': 'transparent',  
                         'edge_color': 'magenta',
                         'shape_type': 'rectangle',

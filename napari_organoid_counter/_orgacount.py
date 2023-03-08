@@ -70,18 +70,19 @@ class OrganoiDL():
         self.pred_bboxes, self.pred_scores = apply_nms(bboxes, scores)
 
     def apply_params(self, confidence, min_diameter_um):
-        pred_bboxes = self.apply_confidence_thresh(confidence)
-        pred_bboxes = self.filter_small_organoids(min_diameter_um, pred_bboxes)
+        pred_bboxes, pred_scores = self.apply_confidence_thresh(confidence)
+        pred_bboxes, pred_scores = self.filter_small_organoids(min_diameter_um, pred_bboxes, pred_scores)
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
-        return pred_bboxes
+        return pred_bboxes, pred_scores
 
     def apply_confidence_thresh(self, confidence):
         if self.pred_bboxes is None: return None
         keep = (self.pred_scores>confidence).nonzero(as_tuple=True)[0]
         result_bboxes = self.pred_bboxes[keep]
-        return result_bboxes
+        result_scores = self.pred_scores[keep]
+        return result_bboxes, result_scores
 
-    def filter_small_organoids(self, min_diameter_um, pred_bboxes):
+    def filter_small_organoids(self, min_diameter_um, pred_bboxes, pred_scores):
         if pred_bboxes is None: return None
         if len(pred_bboxes)==0: return None
         min_diameter_x = min_diameter_um / self.img_scale[0]
@@ -93,6 +94,7 @@ class OrganoiDL():
             dy = abs(y1_real - y2_real)
             if dx >= min_diameter_x and dy >= min_diameter_y: keep.append(idx) 
         pred_bboxes = pred_bboxes[keep]
-        return pred_bboxes
+        pred_scores = pred_scores[keep]
+        return pred_bboxes, pred_scores
 
 

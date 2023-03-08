@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QSlider, QLabel, QFileDialog, QLineEdit, QGroupBox)
 
 from napari_organoid_counter._orgacount import OrganoiDL
-from napari_organoid_counter._utils import apply_normalization, write_to_csv, get_bbox_diameters, write_to_json, get_bboxes_as_dict
+from napari_organoid_counter._utils import apply_normalization, write_to_csv, get_bbox_diameters, write_to_json, get_bboxes_as_dict, squeeze_img
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -36,6 +36,7 @@ class OrganoidCounterWidget(QWidget):
         self.downsampling = downsampling
         self.min_diameter = min_diameter
         self.confidence = confidence
+        self.num_organoids = 0
         
         # read already opened files
         self.image_layer_names = self._get_layer_names()
@@ -51,7 +52,6 @@ class OrganoidCounterWidget(QWidget):
         else: self.image_layer_name = None
         if self.shape_layer_names: self.self.shape_layer_name = self.shape_layer_names[0]
 
-        
         # setup gui
         self._setup_input_widget()
         self._setup_output_widget()
@@ -75,39 +75,54 @@ class OrganoidCounterWidget(QWidget):
             self._update_remove_shapes(current_selection_items)
 
     def _preprocess(self):
+        """Preprocess the current image in the viewer to improve visualisation for the user"""
         img = self.original_images[self.image_layer_name]
         img = apply_normalization(img)
         self.viewer.layers[self.image_layer_name].data = img
         self.viewer.layers[self.image_layer_name].contrast_limits = (0,255)
 
-    def _update_vis_bboxes(self, bboxes):
-        new_text = 'Number of detected organoids: '+str(len(bboxes))
+    def _update_num_organoids(self, bboxes):
+        """Updates the number of organoids displayed in the viewer"""
+        self.num_organoids = len(bboxes)
+        new_text = 'Number of organoids: '+str(self.num_organoids)
         self.organoid_number_label.setText(new_text)
+
+    def _update_vis_bboxes(self, bboxes, scores):
+        """ Adds the shapes layer to the viewer or updates it if already there"""
+        self._update_num_organoids(bboxes)
         seg_layer_name = 'Labels-'+self.image_layer_name
 
         if seg_layer_name in self.shape_layer_names: 
-            
             self.cur_shapes_layer.add(bboxes, 
                                       face_color='transparent',  
                                       edge_color='magenta',
                                       shape_type='rectangle',
                                       edge_width=12)
             self.viewer.layers[seg_layer_name].data = bboxes # hack to get edge_width stay the same!
+            self.viewer.layers[seg_layer_name].current_properties = {'box_id': self.num_organoids+1,'scores':  1}
 
         else:
             # if no organoids were found just make an empty shapes layer
-            if len(bboxes)==0: 
+            if self.num_organoids==0: 
                 self.cur_shapes_layer = self.viewer.add_shapes(name=seg_layer_name)
             # otherwise make the layer and add the boxes
             else:
+                properties = {'box_id': list(range(self.num_organoids)),'scores': scores}
+                text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}',
+                               'size': 12,
+                               'anchor': 'upper_left',}
                 self.cur_shapes_layer = self.viewer.add_shapes(bboxes, 
                                         name=seg_layer_name,
                                         scale=self.viewer.layers[self.image_layer_name].scale,
                                         face_color='transparent',  
+                                        properties = properties,
+                                        text = text_params,
                                         edge_color='magenta',
                                         shape_type='rectangle',
                                         edge_width=12) # warning generated here
-                
+
+        self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
+        self.viewer.layers[seg_layer_name].current_properties = {'box_id': self.num_organoids+1,'scores':  1}
         self.viewer.layers[seg_layer_name].current_edge_width = 12 # so edge width is the same when users annotate - doesnt' fix new preds being added!
         self.cur_shapes = seg_layer_name
 
@@ -135,7 +150,7 @@ class OrganoidCounterWidget(QWidget):
         img_data = self.viewer.layers[self.image_layer_name].data
         img_scale = self.viewer.layers[self.image_layer_name].scale
         # check that image is grayscale
-        if len(img_data.shape) > 2:
+        if len(squeeze_img(img_data).shape) > 2:
             show_info('Only grayscale images currently supported. Try a different image or process it first and try again!')
             return
         # run inference
@@ -145,11 +160,11 @@ class OrganoidCounterWidget(QWidget):
                            self.downsampling,
                            window_overlap = 1)# 0.5)
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
-        bboxes = self.organoiDL.apply_params(self.confidence, self.min_diameter)
+        bboxes, scores = self.organoiDL.apply_params(self.confidence, self.min_diameter)
+        # update the viewer with the new bboxes
+        self._update_vis_bboxes(bboxes, scores)
         # preprocess the image if not done so already to improve visualisation
         self._preprocess() 
-        # update the viewer with the new bboxes
-        self._update_vis_bboxes(bboxes)
 
     def _on_choose_model_clicked(self):
         # called when the user hits the 'browse' button to select a model
@@ -173,41 +188,44 @@ class OrganoidCounterWidget(QWidget):
         new_downsampling = new_downsampling.split(',')
         self.downsampling = [int(ds) for ds in new_downsampling]
 
+    def _rerun(self):
+        if self.organoiDL is not None:
+            bboxes, scores = self.organoiDL.apply_params(self.confidence, self.min_diameter)
+            self._update_vis_bboxes(bboxes, scores)
+
     def _on_diameter_changed(self):
         self.min_diameter = self.min_diameter_slider.value()
         self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
-        if self.organoiDL is not None:
-            bboxes = self.organoiDL.apply_params(self.confidence, self.min_diameter)
-            self._update_vis_bboxes(bboxes)
+        self._rerun()
 
     def _on_confidence_changed(self):
         self.confidence = self.confidence_slider.value()/100
         self.confidence_label.setText('Model confidence: '+str(self.confidence))
-        if self.organoiDL is not None:
-            bboxes = self.organoiDL.apply_params(self.confidence, self.min_diameter)
-            self._update_vis_bboxes(bboxes)
+        self._rerun()
         
     def _on_image_selection_changed(self):
         self.image_layer_name = self.image_layer_selection.currentText()
     
     def _on_shapes_selection_changed(self):
         self.shape_layer_name = self.output_layer_selection.currentText()
-
+    '''
     def _on_update_click(self):
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else:
             #selected_layer_name = self.output_layer_selection.currentText()
             bboxes = self.viewer.layers[self.cur_shapes].data
-            new_text = 'Number of detected organoids: '+str(len(bboxes))
+            self._update_num_organoids(bboxes)
+            self.num_organoids = len(bboxes)
+            new_text = 'Number of organoids: '+str(self.num_organoids)
             self.organoid_number_label.setText(new_text)
-        '''
-            self._preprocess()
-            img_data = self.viewer.layers[self.image_layer_name].data # get pre-processed image!!!
-            bboxes = self.viewer.layers['Labels-'+self.image_layer_name].data
-            img_data = add_text_to_img(img_data, len(bboxes))
-            self.viewer.layers[self.image_layer_name].data = img_data
-        '''
-
+        
+            #self._preprocess()
+            #img_data = self.viewer.layers[self.image_layer_name].data # get pre-processed image!!!
+            #bboxes = self.viewer.layers['Labels-'+self.image_layer_name].data
+            #img_data = add_text_to_img(img_data, len(bboxes))
+            #self.viewer.layers[self.image_layer_name].data = img_data
+        
+    '''
     def _on_reset_click(self):
         # reset params
         self.min_diameter = 30
@@ -234,7 +252,9 @@ class OrganoidCounterWidget(QWidget):
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
             # write diameters and area to csv
-            data_csv = get_bbox_diameters(bboxes, self.viewer.layers[self.shape_layer_name].scale)
+            data_csv = get_bbox_diameters(bboxes, 
+                                          self.viewer.layers[self.shape_layer_name].properties.box_id,
+                                          self.viewer.layers[self.shape_layer_name].scale)
             fd = QFileDialog()
             name, _ = fd.getSaveFileName(self, 'Save File', self.shape_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
             if name: write_to_csv(name, data_csv)
@@ -243,9 +263,13 @@ class OrganoidCounterWidget(QWidget):
     def _on_save_json_click(self):
         selected_layer_name = self.output_layer_selection.currentText()
         bboxes = self.viewer.layers[selected_layer_name].data
+        #scores = #add
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
-            data_json = get_bboxes_as_dict(bboxes, self.viewer.layers[self.shape_layer_name].scale)
+            data_json = get_bboxes_as_dict(bboxes, 
+                                           self.viewer.layers[self.shape_layer_name].properties.box_id,
+                                           self.viewer.layers[self.shape_layer_name].properties.scores,
+                                           self.viewer.layers[self.shape_layer_name].scale)
             # write bbox coordinates to json
             fd = QFileDialog()
             name,_ = fd.getSaveFileName(self, 'Save File', self.shape_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
@@ -254,45 +278,48 @@ class OrganoidCounterWidget(QWidget):
 
     def _setup_input_widget(self):
 
-        self._setup_input_box()
-        self._setup_model_box()
-        self._setup_window_sizes_box()
-        self._setup_downsampling_box()
+        input_box = self._setup_input_box()
+        model_box = self._setup_model_box()
+        window_sizes_box = self._setup_window_sizes_box()
+        downsampling_box = self._setup_downsampling_box()
+        run_box = self._setup_run_box()
 
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
         run_btn = QPushButton("Run Organoid Counter")
         run_btn.clicked.connect(self._on_run_click)
         run_btn.setStyleSheet("border: 0px")
+        hbox.addWidget(run_btn)
+        hbox.addStretch(1)
         
         self.input_widget = QGroupBox('Input configurations')
         vbox = QVBoxLayout()
-        vbox.addWidget(self.input_box)
-        vbox.addWidget(self.model_box)
-        vbox.addWidget(self.window_sizes_box)
-        vbox.addWidget(self.downsampling_box)
-        vbox.addWidget(run_btn)
+        #vbox.addWidget(self.input_box)
+        vbox.addLayout(input_box)
+        vbox.addLayout(model_box)
+        vbox.addLayout(window_sizes_box)
+        vbox.addLayout(downsampling_box)
+        vbox.addLayout(run_box)
         self.input_widget.setLayout(vbox)
 
     def _setup_output_widget(self):
-        
-        self._setup_min_diameter_box()
-        self._setup_confidence_box()        
-        self._setup_display_res_box()
-        self._setup_reset_box()
-        self._setup_save_box()
+
+        self.organoid_number_label = QLabel('Number of organoids: '+str(self.num_organoids), self)
+        self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
         self.output_widget = QGroupBox('Parameters and outputs')
         vbox = QVBoxLayout()
-        vbox.addWidget(self.min_diameter_box)
-        vbox.addWidget(self.confidence_box)
-        vbox.addWidget(self.display_res_box)
-        vbox.addWidget(self.reset_box)
-        vbox.addWidget(self.save_box)
+        vbox.addLayout(self._setup_min_diameter_box())
+        vbox.addLayout(self._setup_confidence_box() )
+        vbox.addWidget(self.organoid_number_label)
+        vbox.addLayout(self._setup_reset_box())
+        vbox.addLayout(self._setup_save_box())
         self.output_widget.setLayout(vbox)
 
 
     def _setup_input_box(self):
 
-        self.input_box = QGroupBox()
+        #self.input_box = QGroupBox()
         hbox = QHBoxLayout()
 
         image_label = QLabel('Image: ', self)
@@ -311,12 +338,13 @@ class OrganoidCounterWidget(QWidget):
         hbox.addSpacing(5)
         hbox.addWidget(self.image_layer_selection)
         hbox.addWidget(preprocess_btn)
-        self.input_box.setLayout(hbox)
-        self.input_box.setStyleSheet("border: 0px")
+        #self.input_box.setLayout(hbox)
+        #self.input_box.setStyleSheet("border: 0px")
+        return hbox
 
     def _setup_model_box(self):
 
-        self.model_box = QGroupBox()
+        #self.model_box = QGroupBox()
         hbox = QHBoxLayout()
         
         model_label = QLabel('Model: ', self)
@@ -332,12 +360,13 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(model_label)
         hbox.addWidget(self.model_textbox)
         hbox.addWidget(fileOpenButton)
-        self.model_box.setLayout(hbox)
-        self.model_box.setStyleSheet("border: 0px")
+        #self.model_box.setLayout(hbox)
+        #self.model_box.setStyleSheet("border: 0px")
+        return hbox
 
     def _setup_window_sizes_box(self):
 
-        self.window_sizes_box = QGroupBox()
+        #self.window_sizes_box = QGroupBox()
         hbox = QHBoxLayout()
 
         window_sizes_label = QLabel('Window sizes: [size1, size2, ...]', self)
@@ -351,13 +380,14 @@ class OrganoidCounterWidget(QWidget):
 
         hbox.addWidget(window_sizes_label)
         hbox.addWidget(self.window_sizes_textbox)   
-        self.window_sizes_box.setLayout(hbox)   
-        self.window_sizes_box.setStyleSheet("border: 0px")  
+        #self.window_sizes_box.setLayout(hbox)   
+        #self.window_sizes_box.setStyleSheet("border: 0px")  
+        return hbox
 
 
     def _setup_downsampling_box(self):
 
-        self.downsampling_box = QGroupBox()
+        #self.downsampling_box = QGroupBox()
         hbox = QHBoxLayout()
 
         downsampling_label = QLabel('Downsampling: [ds1, ds2, ...]', self)
@@ -371,13 +401,23 @@ class OrganoidCounterWidget(QWidget):
 
         hbox.addWidget(downsampling_label)
         hbox.addWidget(self.downsampling_textbox) 
-        self.downsampling_box.setLayout(hbox)
-        self.downsampling_box.setStyleSheet("border: 0px") 
+        #self.downsampling_box.setLayout(hbox)
+        #self.downsampling_box.setStyleSheet("border: 0px") 
+        return hbox
 
+    def _setup_run_box(self):
+        hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        run_btn = QPushButton("Run Organoid Counter")
+        run_btn.clicked.connect(self._on_run_click)
+        run_btn.setStyleSheet("border: 0px")
+        hbox.addWidget(run_btn)
+        hbox.addStretch(1)
+        return hbox
 
     def _setup_min_diameter_box(self):
 
-        self.min_diameter_box = QGroupBox()
+        #self.min_diameter_box = QGroupBox()
         hbox = QHBoxLayout()
 
         self.min_diameter_slider = QSlider(Qt.Horizontal)
@@ -394,12 +434,13 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(self.min_diameter_label)
         hbox.addSpacing(15)
         hbox.addWidget(self.min_diameter_slider)
-        self.min_diameter_box.setLayout(hbox)
-        self.min_diameter_box.setStyleSheet("border: 0px") 
+        #self.min_diameter_box.setLayout(hbox)
+        #self.min_diameter_box.setStyleSheet("border: 0px") 
+        return hbox
 
     def _setup_confidence_box(self):
 
-        self.confidence_box = QGroupBox()
+        #self.confidence_box = QGroupBox()
         hbox = QHBoxLayout()
 
         self.confidence_slider = QSlider(Qt.Horizontal)
@@ -416,28 +457,26 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(self.confidence_label)
         hbox.addSpacing(15)
         hbox.addWidget(self.confidence_slider)
-        self.confidence_box.setLayout(hbox)
-        self.confidence_box.setStyleSheet("border: 0px") 
+        #self.confidence_box.setLayout(hbox)
+        #self.confidence_box.setStyleSheet("border: 0px") 
+        return hbox
 
+    '''
     def _setup_display_res_box(self):
 
         self.display_res_box = QGroupBox()
         hbox = QHBoxLayout()
 
-        self.organoid_number_label = QLabel('Number of detected organoids: 0', self)
+        self.organoid_number_label = QLabel('Number of organoids: 0', self)
         self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-
-        update_btn = QPushButton("Update Number")
-        update_btn.clicked.connect(self._on_update_click)
     
         hbox.addWidget(self.organoid_number_label)
-        hbox.addSpacing(15)
-        hbox.addWidget(update_btn)
         self.display_res_box.setLayout(hbox)
         self.display_res_box.setStyleSheet("border: 0px") 
+    '''
 
     def _setup_reset_box(self):
-        self.reset_box = QGroupBox()
+        #self.reset_box = QGroupBox()
         hbox = QHBoxLayout()
 
         self.reset_btn = QPushButton("Reset Configs")
@@ -445,16 +484,19 @@ class OrganoidCounterWidget(QWidget):
 
         self.screenshot_btn = QPushButton("Take screenshot")
         self.screenshot_btn.clicked.connect(self._on_screenshot_click)
-
+       
+        hbox.addStretch(1)
         hbox.addWidget(self.screenshot_btn)
         hbox.addSpacing(15)
         hbox.addWidget(self.reset_btn)
-        self.reset_box.setLayout(hbox)
-        self.reset_box.setStyleSheet("border: 0px")
+        hbox.addStretch(1)
+        #self.reset_box.setLayout(hbox)
+        #self.reset_box.setStyleSheet("border: 0px")
+        return hbox
 
     def _setup_save_box(self):
         
-        self.save_box = QGroupBox()
+        #self.save_box = QGroupBox()
         hbox = QHBoxLayout()
 
         self.save_csv_btn = QPushButton("Save features")
@@ -477,8 +519,9 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(self.output_layer_selection)
         hbox.addWidget(self.save_csv_btn)
         hbox.addWidget(self.save_json_btn)
-        self.save_box.setLayout(hbox)
-        self.save_box.setStyleSheet("border: 0px")
+        #self.save_box.setLayout(hbox)
+        #self.save_box.setStyleSheet("border: 0px")
+        return hbox
 
     def _get_layer_names(self, layer_type: layers.Layer = layers.Image) -> List[str]:
         """
@@ -520,3 +563,6 @@ class OrganoidCounterWidget(QWidget):
         for removed_layer in removed_layers:
             item_id = self.output_layer_selection.findText(removed_layer)
             self.output_layer_selection.removeItem(item_id)
+
+    def shapes_event_handler(self, event):
+        self._update_num_organoids(self.cur_shapes_layer.data)

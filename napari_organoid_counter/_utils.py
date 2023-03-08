@@ -18,24 +18,21 @@ def write_to_json(name, data):
     with open(name, 'w') as outfile:
         json.dump(data, outfile)  
 
-def get_bboxes_as_dict(bboxes, scales):
-    
+def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales):
     data_json = {} 
-
-    for i, bbox in enumerate(bboxes):
+    for idx, bbox in enumerate(bboxes):
         x1, y1 = bbox[0]
         x2, y2 = bbox[2]
-        data_json.update({str(i): {'box_id': i,
-                                    'x1': x1,
-                                    'x2': x2,
-                                    'y1': y1,
-                                    'y2': y2,
-                                    'scale_x': scales[0],
-                                    'scale_y': scales[1]}
+        data_json.update({str(bbox_ids[idx]): {'box_id': bbox_ids[idx],
+                                                'x1': x1,
+                                                'x2': x2,
+                                                'y1': y1,
+                                                'y2': y2,
+                                                'confidence': scores[idx],
+                                                'scale_x': scales[0],
+                                                'scale_y': scales[1]
+                                                }
                         })
-
-
-
     return data_json
 
 def write_to_csv(name, data):
@@ -44,18 +41,21 @@ def write_to_csv(name, data):
         write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]'])
         write.writerows(data)
 
-def get_bbox_diameters(bboxes, scales):
+def get_bbox_diameters(bboxes, bbox_ids, scales):
     data_csv = []
     # save diameters and area of organoids (approximated as ellipses)
-    for i, bbox in enumerate(bboxes):
+    for idx, bbox in enumerate(bboxes):
         d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]
         d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
         area = math.pi * d1 * d2
-        data_csv.append([i, round(d1,3), round(d2,3), round(area,3)])
+        data_csv.append([bbox_ids[idx], round(d1,3), round(d2,3), round(area,3)])
+
+def squeeze_img(img):
+    return np.squeeze(img)
 
 def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
 
-    test_img = np.squeeze(test_img)
+    test_img = squeeze_img(test_img)
     test_img = rescale(test_img, rescale_factor, preserve_range=True)
     img_height, img_width = test_img.shape
     pad_x = (img_height//step)*step + window_size - img_height
@@ -104,7 +104,7 @@ def convert_boxes_to_napari_view(pred_bboxes):
     return new_boxes
 
 def apply_normalization(img):
-    img = np.squeeze(img) #self.viewer.layers[self.image_layer_name].data)
+    img = squeeze_img(img) #self.viewer.layers[self.image_layer_name].data)
     img = img.astype(np.float64)
     #Normalise and return img to range 0-255
     img_min = np.min(img) # 31.3125 png 0
