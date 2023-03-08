@@ -1,18 +1,17 @@
 import os
-import csv
-import json
-from skimage.io import imsave
-from datetime import datetime
 from typing import List
 
+from skimage.io import imsave
+from datetime import datetime
+
 from napari import layers
-#from qtpy.QtWidgets import QWidget, QPushButton, QHBoxLayout
+from napari.utils.notifications import show_info
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QSlider, QLabel, QFileDialog, QLineEdit, QGroupBox)
-from napari.utils.notifications import show_info
-import math
+
 from napari_organoid_counter._orgacount import OrganoiDL
-from napari_organoid_counter._utils import apply_normalization
+from napari_organoid_counter._utils import apply_normalization, write_to_csv, get_bbox_diameters, write_to_json, get_bboxes_as_dict
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -38,16 +37,20 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter = min_diameter
         self.confidence = confidence
         
-        # this has to be changed if we later add more images it needs to be updated 
+        # read already opened files
         self.image_layer_names = self._get_layer_names()
+        self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
         self.original_images = {}
+        self.original_labels = {}
         self.original_contrast = {}
         if self.image_layer_names: 
             self.image_layer_name = self.image_layer_names[0]
             for layer_name in self.image_layer_names:
                 self.original_images[layer_name] = self.viewer.layers[layer_name].data
-                self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
+                self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         else: self.image_layer_name = None
+        if self.shape_layer_names: self.self.shape_layer_name = self.shape_layer_names[0]
+
         
         # setup gui
         self._setup_input_widget()
@@ -58,33 +61,18 @@ class OrganoidCounterWidget(QWidget):
         
         @self.viewer.layers.events.connect
         def _added_layer(arg): 
+
             # get image layers names
             self.image_layer_names = self._get_layer_names()
-            # update selection box with new images if image has been added
             current_selection_items = [self.image_layer_selection.itemText(i) for i in range(self.image_layer_selection.count())]
-            for layer_name in self.image_layer_names:
-                if layer_name not in current_selection_items: 
-                    self.image_layer_selection.addItem(layer_name)
-                    self.original_images[layer_name] = self.viewer.layers[layer_name].data
-                    self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
-            # update selection box by removing image names if image has been deleted       
-            removed_layers = [name for name in current_selection_items if name not in self.image_layer_names]
-            for removed_layer in removed_layers:
-                item_id = self.image_layer_selection.findText(removed_layer)
-                self.image_layer_selection.removeItem(item_id)
-                del self.original_images[removed_layer]
-                del self.original_contrast[removed_layer]
+            self._update_added_image(current_selection_items)
+            self._update_removed_image(current_selection_items)
+
             # do the same with shapes layers
             self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
             current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
-            for layer_name in self.shape_layer_names:
-                if layer_name not in current_selection_items: 
-                    self.output_layer_selection.addItem(layer_name)
-            # update selection box by removing image names if image has been deleted       
-            removed_layers = [name for name in current_selection_items if name not in self.shape_layer_names]
-            for removed_layer in removed_layers:
-                item_id = self.output_layer_selection.findText(removed_layer)
-                self.output_layer_selection.removeItem(item_id)
+            self._update_added_shapes(current_selection_items)
+            self._update_remove_shapes(current_selection_items)
 
     def _preprocess(self):
         img = self.original_images[self.image_layer_name]
@@ -95,7 +83,8 @@ class OrganoidCounterWidget(QWidget):
     def _update_vis_bboxes(self, bboxes):
         new_text = 'Number of detected organoids: '+str(len(bboxes))
         self.organoid_number_label.setText(new_text)
-        seg_layer_name = 'Organoids '+self.image_layer_name
+        seg_layer_name = 'Labels-'+self.image_layer_name
+
         if seg_layer_name in self.shape_layer_names: 
             
             self.cur_shapes_layer.add(bboxes, 
@@ -106,8 +95,10 @@ class OrganoidCounterWidget(QWidget):
             self.viewer.layers[seg_layer_name].data = bboxes # hack to get edge_width stay the same!
 
         else:
+            # if no organoids were found just make an empty shapes layer
             if len(bboxes)==0: 
-                self.cur_shapes_layer = self.viewer.add_shapes(name = seg_layer_name)
+                self.cur_shapes_layer = self.viewer.add_shapes(name=seg_layer_name)
+            # otherwise make the layer and add the boxes
             else:
                 self.cur_shapes_layer = self.viewer.add_shapes(bboxes, 
                                         name=seg_layer_name,
@@ -196,8 +187,11 @@ class OrganoidCounterWidget(QWidget):
             bboxes = self.organoiDL.apply_params(self.confidence, self.min_diameter)
             self._update_vis_bboxes(bboxes)
         
-    def _image_selection_changed(self):
+    def _on_image_selection_changed(self):
         self.image_layer_name = self.image_layer_selection.currentText()
+    
+    def _on_shapes_selection_changed(self):
+        self.shape_layer_name = self.output_layer_selection.currentText()
 
     def _on_update_click(self):
         if not self.image_layer_name: show_info('Please load an image first and try again!')
@@ -209,7 +203,7 @@ class OrganoidCounterWidget(QWidget):
         '''
             self._preprocess()
             img_data = self.viewer.layers[self.image_layer_name].data # get pre-processed image!!!
-            bboxes = self.viewer.layers['Organoids '+self.image_layer_name].data
+            bboxes = self.viewer.layers['Labels-'+self.image_layer_name].data
             img_data = add_text_to_img(img_data, len(bboxes))
             self.viewer.layers[self.image_layer_name].data = img_data
         '''
@@ -239,38 +233,24 @@ class OrganoidCounterWidget(QWidget):
         bboxes = self.viewer.layers[selected_layer_name].data
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
-            data_csv = []
-            # save diameters and area of organoids (approximated as ellipses)
-            for i, bbox in enumerate(bboxes):
-                d1 = abs(bbox[0][0] - bbox[2][0]) * self.viewer.layers[self.image_layer_name].scale[0]
-                d2 = abs(bbox[0][1] - bbox[2][1]) * self.viewer.layers[self.image_layer_name].scale[0]
-                area = math.pi * d1 * d2
-                data_csv.append([i, round(d1,3), round(d2,3), round(area,3)])
             # write diameters and area to csv
-            potential_name = self.image_layer_name + '_features'
+            data_csv = get_bbox_diameters(bboxes, self.viewer.layers[self.shape_layer_name].scale)
             fd = QFileDialog()
-            name,_ = fd.getSaveFileName(self, 'Save File', potential_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
-            if name:
-                with open(name, 'w') as f:
-                    write = csv.writer(f, delimiter=';')
-                    write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]'])
-                    write.writerows(data_csv)
+            name, _ = fd.getSaveFileName(self, 'Save File', self.shape_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
+            if name: write_to_csv(name, data_csv)
+
 
     def _on_save_json_click(self):
         selected_layer_name = self.output_layer_selection.currentText()
         bboxes = self.viewer.layers[selected_layer_name].data
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
-            data_json = {} 
-            for i, bbox in enumerate(bboxes):
-                data_json.update({str(i): [list(bboxit) for bboxit in bbox]})
+            data_json = get_bboxes_as_dict(bboxes, self.viewer.layers[self.shape_layer_name].scale)
             # write bbox coordinates to json
-            potential_name = self.image_layer_name + '_annotations'
             fd = QFileDialog()
-            name,_ = fd.getSaveFileName(self, 'Save File', potential_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
-            if name:
-                with open(name, 'w') as outfile:
-                    json.dump(data_json, outfile)  
+            name,_ = fd.getSaveFileName(self, 'Save File', self.shape_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
+            if name: write_to_json(name, data_json)
+
 
     def _setup_input_widget(self):
 
@@ -322,7 +302,7 @@ class OrganoidCounterWidget(QWidget):
         for name in self.image_layer_names:
             self.image_layer_selection.addItem(name)
         #self.image_layer_selection.setItemText(self.image_layer_name)
-        self.image_layer_selection.currentIndexChanged.connect(self._image_selection_changed)
+        self.image_layer_selection.currentIndexChanged.connect(self._on_image_selection_changed)
     
         preprocess_btn = QPushButton("Preprocess")
         preprocess_btn.clicked.connect(self._on_preprocess_click)
@@ -487,12 +467,10 @@ class OrganoidCounterWidget(QWidget):
         self.save_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
         self.output_layer_selection = QComboBox()
-        '''
-        # currently not supported to pre-load shapes layers
         for name in self.shape_layer_names:
             self.output_layer_selection.addItem(name)
-        self.output_layer_selection.currentIndexChanged.connect(self._output_layer_selection_changed)
-        '''
+        self.output_layer_selection.currentIndexChanged.connect(self._on_shapes_selection_changed)
+    
 
         hbox.addWidget(self.save_label)
         hbox.addSpacing(5)
@@ -506,16 +484,39 @@ class OrganoidCounterWidget(QWidget):
         """
         Get list of layer names of a given layer type.
         """
-        layer_names = [
-            layer.name
-            for layer in self.viewer.layers
-            if type(layer) == layer_type
-        ]
+        layer_names = [layer.name for layer in self.viewer.layers if type(layer) == layer_type]
 
         if layer_names:
             return [] + layer_names
         else:
             return []
 
+    def _update_added_image(self, current_selection_items):
+        # update selection box with new images if image has been added
+        for layer_name in self.image_layer_names:
+            if layer_name not in current_selection_items: 
+                self.image_layer_selection.addItem(layer_name)
+                self.original_images[layer_name] = self.viewer.layers[layer_name].data
+                self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
 
 
+    def _update_removed_image(self, current_selection_items):
+        # update selection box by removing image names if image has been deleted       
+        removed_layers = [name for name in current_selection_items if name not in self.image_layer_names]
+        for removed_layer in removed_layers:
+            item_id = self.image_layer_selection.findText(removed_layer)
+            self.image_layer_selection.removeItem(item_id)
+            del self.original_images[removed_layer]
+            del self.original_contrast[removed_layer]
+
+    def _update_added_shapes(self, current_selection_items):
+        for layer_name in self.shape_layer_names:
+            if layer_name not in current_selection_items: 
+                self.output_layer_selection.addItem(layer_name)
+
+    def _update_remove_shapes(self, current_selection_items):
+        # update selection box by removing image names if image has been deleted       
+        removed_layers = [name for name in current_selection_items if name not in self.shape_layer_names]
+        for removed_layer in removed_layers:
+            item_id = self.output_layer_selection.findText(removed_layer)
+            self.output_layer_selection.removeItem(item_id)

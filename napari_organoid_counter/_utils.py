@@ -1,3 +1,5 @@
+import csv
+
 import numpy as np
 from skimage.transform import rescale
 from skimage.color import gray2rgb
@@ -8,7 +10,48 @@ import torch.nn as nn
 from torchvision.models import detection
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops import nms
-from matplotlib import pyplot as plt
+
+import math
+import json
+
+def write_to_json(name, data):
+    with open(name, 'w') as outfile:
+        json.dump(data, outfile)  
+
+def get_bboxes_as_dict(bboxes, scales):
+    
+    data_json = {} 
+
+    for i, bbox in enumerate(bboxes):
+        x1, y1 = bbox[0]
+        x2, y2 = bbox[2]
+        data_json.update({str(i): {'box_id': i,
+                                    'x1': x1,
+                                    'x2': x2,
+                                    'y1': y1,
+                                    'y2': y2,
+                                    'scale_x': scales[0],
+                                    'scale_y': scales[1]}
+                        })
+
+
+
+    return data_json
+
+def write_to_csv(name, data):
+    with open(name, 'w') as f:
+        write = csv.writer(f, delimiter=';')
+        write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]'])
+        write.writerows(data)
+
+def get_bbox_diameters(bboxes, scales):
+    data_csv = []
+    # save diameters and area of organoids (approximated as ellipses)
+    for i, bbox in enumerate(bboxes):
+        d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]
+        d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
+        area = math.pi * d1 * d2
+        data_csv.append([i, round(d1,3), round(d2,3), round(area,3)])
 
 def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
 
