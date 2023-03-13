@@ -1,7 +1,7 @@
 
 import torch
 from torchvision.transforms import ToTensor
-from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view
+from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view
 
 class OrganoiDL():
     def __init__(self, model_checkpoint='model-weights/model_v1.ckpt'):
@@ -97,4 +97,8 @@ class OrganoiDL():
         pred_scores = pred_scores[keep]
         return pred_bboxes, pred_scores
 
+    def update_bboxes_scores(self, new_bboxes, new_scores):
+        new_bboxes = convert_boxes_from_napari_view(new_bboxes)
+        self.pred_bboxes = new_bboxes
+        self.pred_scores = torch.Tensor(list(new_scores))
 
