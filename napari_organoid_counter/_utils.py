@@ -23,14 +23,14 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales):
     for idx, bbox in enumerate(bboxes):
         x1, y1 = bbox[0]
         x2, y2 = bbox[2]
-        data_json.update({str(bbox_ids[idx]): {'box_id': bbox_ids[idx],
-                                                'x1': x1,
-                                                'x2': x2,
-                                                'y1': y1,
-                                                'y2': y2,
-                                                'confidence': scores[idx],
-                                                'scale_x': scales[0],
-                                                'scale_y': scales[1]
+        data_json.update({str(bbox_ids[idx]): {'box_id': str(bbox_ids[idx]),
+                                                'x1': str(x1),
+                                                'x2': str(x2),
+                                                'y1': str(y1),
+                                                'y2': str(y2),
+                                                'confidence': str(scores[idx]),
+                                                'scale_x': str(scales[0]),
+                                                'scale_y': str(scales[1])
                                                 }
                         })
     return data_json
@@ -101,6 +101,18 @@ def convert_boxes_to_napari_view(pred_bboxes):
                                 [x1_real, y2_real],
                                 [x2_real, y2_real],
                                 [x2_real, y1_real]]))
+    return new_boxes
+
+def convert_boxes_from_napari_view(pred_bboxes):
+    new_boxes = []
+    for idx in range(len(pred_bboxes)):
+        x1 = pred_bboxes[idx][0][0]
+        x2 = pred_bboxes[idx][2][0]
+        y1 = pred_bboxes[idx][0][1]
+        y2 = pred_bboxes[idx][2][1]
+        new_boxes.append(torch.Tensor([x1, y1, x2, y2]))
+
+    new_boxes = torch.stack(new_boxes)
     return new_boxes
 
 def apply_normalization(img):
