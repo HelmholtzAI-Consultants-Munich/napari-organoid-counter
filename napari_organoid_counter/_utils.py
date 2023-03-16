@@ -14,6 +14,14 @@ from torchvision.ops import nms
 import math
 import json
 
+from contextlib import contextmanager
+
+@contextmanager
+def set_dict_key(dictionary, key, value):
+    dictionary[key] = value
+    yield
+    del dictionary[key]
+
 def write_to_json(name, data):
     with open(name, 'w') as outfile:
         json.dump(data, outfile)  
