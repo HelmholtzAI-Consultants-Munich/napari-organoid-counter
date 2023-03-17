@@ -103,11 +103,11 @@ class OrganoidCounterWidget(QWidget):
             self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
             # and update whether a new image has been added or an image has been removed
             current_selection_items = [self.image_layer_selection.itemText(i) for i in range(self.image_layer_selection.count())]
-            self._update_added_image(current_selection_items)
+            if self.image_layer_names: self._update_added_image(current_selection_items)
             self._update_removed_image(current_selection_items)
             # do the same with shapes layers
             current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
-            self._update_added_shapes(current_selection_items)
+            if self.shape_layer_names: self._update_added_shapes(current_selection_items)
             self._update_remove_shapes(current_selection_items)
 
     def _preprocess(self):
@@ -129,6 +129,7 @@ class OrganoidCounterWidget(QWidget):
         seg_layer_name = 'Labels-'+self.image_layer_name
         # if layer already exists
         if seg_layer_name in self.shape_layer_names: 
+            print('00000', bboxes[-1])
             self.viewer.layers[seg_layer_name].data = bboxes # hack to get edge_width stay the same!
             self.viewer.layers[seg_layer_name].properties = {'box_id': box_ids,'scores': scores}
             self.viewer.layers[seg_layer_name].edge_width = 12
@@ -141,7 +142,7 @@ class OrganoidCounterWidget(QWidget):
                 self.cur_shapes_layer = self.viewer.add_shapes(name=seg_layer_name)
             # otherwise make the layer and add the boxes
             else:
-                properties = {'box_id': list(range(self.num_organoids)),'scores': scores}
+                properties = {'box_id': box_ids,'scores': scores}
                 text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}',
                                'size': 12,
                                'anchor': 'upper_left',}
@@ -379,16 +380,17 @@ class OrganoidCounterWidget(QWidget):
         bboxes = self.cur_shapes_layer.data
         self._update_num_organoids(len(bboxes)) 
         # and check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids
+        
         if self.organoiDL is None:
             self.organoiDL = OrganoiDL(self.cur_shapes_layer.scale,
                                        model_checkpoint=self.model_path)
             self.organoiDL.update_bboxes_scores(bboxes, 
                                             self.cur_shapes_layer.properties['scores'],
                                             self.cur_shapes_layer.properties['box_id'])
-            self.organoiDL.update_next_id(len(bboxes))
+            self.organoiDL.update_next_id(len(bboxes)+1)
         # listen for a data change in the current shapes layer
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
-
+        
     def _update_remove_shapes(self, current_selection_items):
         """
         Update the selection box by removing shape layer names if it they been deleted and set 
@@ -427,7 +429,10 @@ class OrganoidCounterWidget(QWidget):
                 new_scores[-1] = 1
 
             self.viewer.layers[self.cur_shapes].properties ={'box_id': new_ids,'scores':  new_scores}
-        
+        else:
+            new_scores = self.viewer.layers[self.cur_shapes].properties['scores']
+            new_ids = self.viewer.layers[self.cur_shapes].properties['box_id']
+
         # refresh text displayed
         self.viewer.layers[self.cur_shapes].refresh()
         self.viewer.layers[self.cur_shapes].refresh_text()

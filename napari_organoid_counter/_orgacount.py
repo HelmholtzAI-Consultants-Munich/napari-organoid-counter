@@ -78,7 +78,7 @@ class OrganoiDL():
         self.pred_bboxes, self.pred_scores = apply_nms(bboxes, scores)
         num_predictions = self.pred_bboxes.size(0)
         self.pred_ids = [(i+1) for i in range(num_predictions)]
-        self.next_id = num_predictions
+        self.next_id = num_predictions+1
 
     def apply_params(self, confidence, min_diameter_um):
         self.cur_confidence = confidence
@@ -86,7 +86,9 @@ class OrganoiDL():
         pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh()
         if pred_bboxes.size(0)!=0:
             pred_bboxes, pred_scores, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_ids)
+        print('eeee', pred_bboxes[-1])
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
+        print('aaa', pred_bboxes[-1])
         return pred_bboxes, pred_scores, pred_ids
 
     def _apply_confidence_thresh(self):
@@ -94,10 +96,10 @@ class OrganoiDL():
         keep = (self.pred_scores>self.cur_confidence).nonzero(as_tuple=True)[0]
         result_bboxes = self.pred_bboxes[keep]
         result_scores = self.pred_scores[keep]
-        result_ids = [self.pred_ids[int(i)] for i in keep.tolist()] # self.pred_ids[keep]
+        result_ids = [self.pred_ids[int(i)] for i in keep.tolist()]
         return result_bboxes, result_scores, result_ids
     
-    def _filter_small_organoids(self, pred_bboxes, pred_scores, preds_ids):
+    def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_ids):
         if pred_bboxes is None: return None
         if len(pred_bboxes)==0: return None
         min_diameter_x = self.cur_min_diam / self.img_scale[0]
@@ -105,10 +107,11 @@ class OrganoiDL():
         keep = []
         for idx in range(len(pred_bboxes)):
             dx, dy = get_diams(pred_bboxes[idx])
-            if dx >= min_diameter_x and dy >= min_diameter_y: keep.append(idx) 
+            if (dx >= min_diameter_x and dy >= min_diameter_y) or pred_scores[idx] == 1: keep.append(idx) 
         pred_bboxes = pred_bboxes[keep]
         pred_scores = pred_scores[keep]
-        pred_ids = [self.pred_ids[i] for i in keep] #preds_ids[keep]
+        print(keep)
+        pred_ids = [pred_ids[i] for i in keep]
         return pred_bboxes, pred_scores, pred_ids
 
     def update_bboxes_scores(self, new_bboxes, new_scores, new_ids):
@@ -125,6 +128,7 @@ class OrganoiDL():
             min_diameter_y = self.cur_min_diam / self.img_scale[1]
             # find ids that do are not in self.pred_ids but are in new_ids
             added_box_ids = list(set(new_ids).difference(self.pred_ids))
+            print('added: ', added_box_ids)
             if len(added_box_ids) > 0:
                 added_ids = [new_ids.index(box_id) for box_id in added_box_ids]
                 #  and add them
@@ -132,7 +136,7 @@ class OrganoiDL():
                 self.pred_scores = torch.cat((self.pred_scores, new_scores[added_ids]))
                 new_ids_to_add = [new_ids[i] for i in added_ids]
                 self.pred_ids.extend(new_ids_to_add)
-
+            
             # and find ids that are in self.pred_ids and not in new_ids
             potential_removed_box_ids = list(set(self.pred_ids).difference(new_ids))
             if len(potential_removed_box_ids) > 0:
@@ -142,6 +146,7 @@ class OrganoiDL():
                     dx, dy  = get_diams(self.pred_bboxes[idx])
                     if self.pred_scores[idx] > self.cur_confidence and dx > min_diameter_x and dy > min_diameter_y:
                         remove_ids.append(idx)
+                print('removed:', remove_ids)
                 # and remove them
                 for idx in reversed(remove_ids):
                     self.pred_bboxes = torch.cat((self.pred_bboxes[:idx, :], self.pred_bboxes[idx+1:, :]))
@@ -149,7 +154,7 @@ class OrganoiDL():
                     new_pred_ids = self.pred_ids[:idx]
                     new_pred_ids.extend(self.pred_ids[idx+1:])
                     self.pred_ids = new_pred_ids
-    
+
     def update_next_id(self, c=0):
         if c!=0:
             self.next_id = c
