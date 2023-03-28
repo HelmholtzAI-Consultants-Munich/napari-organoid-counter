@@ -157,7 +157,6 @@ class OrganoidCounterWidget(QWidget):
                                         shape_type='rectangle',
                                         edge_width=12) # warning generated here
                 # set up event handler for when data from this layer changes
-                #self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
             
             # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
             self.viewer.layers[seg_layer_name].current_edge_width = 12
@@ -248,6 +247,10 @@ class OrganoidCounterWidget(QWidget):
         if self.organoiDL is not None:
             # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
             with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
+                # first update bboxes in organoiDLin case user has added/removed
+                self.organoiDL.update_bboxes_scores(self.cur_shapes_layer.data, 
+                                self.cur_shapes_layer.properties['scores'],
+                                self.cur_shapes_layer.properties['box_id'])
                 # and get new boxes, scores and box ids based on new confidence and min_diameter values 
                 bboxes, scores, box_ids = self.organoiDL.apply_params(self.confidence, self.min_diameter)
                 self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes)
@@ -391,7 +394,6 @@ class OrganoidCounterWidget(QWidget):
                 self.organoiDL = None
                 self.cur_shapes = '' # DO SOMETHING!
 
-    # the problem is that this event is called once before the drawing has been completed!!!!!!
     def shapes_event_handler(self, event):
         """
         This function will be called every time the current shapes layer data changes
@@ -403,29 +405,28 @@ class OrganoidCounterWidget(QWidget):
         
         # get new ids, new boxes and update the number of organoids
         new_ids = self.viewer.layers[self.cur_shapes].properties['box_id']
-        new_bboxes = self.cur_shapes_layer.data
-        self._update_num_organoids(len(new_bboxes))
+        self._update_num_organoids(len(new_ids))
         
         # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doens't work
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
-            if num_sim > 1: print('this shouldnt happen!!!!!!!!!!!!!!!!!')
+            if num_sim > 1: print('this should not happen!!!!!!!!!!!!!!!!!')
             else: 
                 new_ids[-1] = self.organoiDL.next_id
                 new_scores = self.viewer.layers[self.cur_shapes].properties['scores']
                 new_scores[-1] = 1
-
+            # set new properties to shapes layer
             self.viewer.layers[self.cur_shapes].properties ={'box_id': new_ids,'scores':  new_scores}
-        else:
-            new_scores = self.viewer.layers[self.cur_shapes].properties['scores']
-            new_ids = self.viewer.layers[self.cur_shapes].properties['box_id']
-
-        # refresh text displayed
-        self.viewer.layers[self.cur_shapes].refresh()
-        self.viewer.layers[self.cur_shapes].refresh_text()
-        # and update the OrganoiDL instance
-        self.organoiDL.update_next_id()
-        self.organoiDL.update_bboxes_scores(new_bboxes, new_scores, new_ids)
+            # refresh text displayed
+            self.viewer.layers[self.cur_shapes].refresh()
+            self.viewer.layers[self.cur_shapes].refresh_text()
+            # and update the OrganoiDL instance
+            self.organoiDL.update_next_id()
+        
+        # this doesn't work!!!!
+        # the problem is that the event is called once before the drawing has been completed!!!!!!
+        #new_bboxes = self.cur_shapes_layer.data
+        #self.organoiDL.update_bboxes_scores(new_bboxes, new_scores, new_ids)
         
     def _setup_input_widget(self):
         """
