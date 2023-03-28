@@ -96,19 +96,22 @@ class OrganoidCounterWidget(QWidget):
         if self.shape_layer_names: self._update_added_shapes([])
         
         # watch for newly added images or shapes
-        @self.viewer.layers.events.connect
-        def _added_layer(arg): 
-            # get image and shape layers names
-            self.image_layer_names = self._get_layer_names()
-            self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
-            # and update whether a new image has been added or an image has been removed
-            current_selection_items = [self.image_layer_selection.itemText(i) for i in range(self.image_layer_selection.count())]
-            if self.image_layer_names: self._update_added_image(current_selection_items)
-            self._update_removed_image(current_selection_items)
-            # do the same with shapes layers
-            current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
-            if self.shape_layer_names: self._update_added_shapes(current_selection_items)
-            self._update_remove_shapes(current_selection_items)
+        self.viewer.layers.events.inserted.connect(self._added_or_removed_layer)
+        self.viewer.layers.events.removed.connect(self._added_or_removed_layer)
+
+    def _added_or_removed_layer(self, event): 
+        # get image and shape layers names
+        self.image_layer_names = self._get_layer_names()
+        self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
+        # and update whether a new image has been added or an image has been removed
+        current_selection_items = [self.image_layer_selection.itemText(i) for i in range(self.image_layer_selection.count())]
+        if self.image_layer_names: self._update_added_image(current_selection_items)
+        self._update_removed_image(current_selection_items)
+        # do the same with shapes layers
+        current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
+        if self.shape_layer_names: self._update_added_shapes(current_selection_items)
+        self._update_remove_shapes(current_selection_items)
+        
 
     def _preprocess(self):
         """ Preprocess the current image in the viewer to improve visualisation for the user """
@@ -123,13 +126,11 @@ class OrganoidCounterWidget(QWidget):
         new_text = 'Number of organoids: '+str(self.num_organoids)
         self.organoid_number_label.setText(new_text)
 
-    def _update_vis_bboxes(self, bboxes, scores, box_ids):
+    def _update_vis_bboxes(self, bboxes, scores, box_ids, seg_layer_name):
         """ Adds the shapes layer to the viewer or updates it if already there """
         self._update_num_organoids(len(bboxes))
-        seg_layer_name = 'Labels-'+self.image_layer_name
         # if layer already exists
         if seg_layer_name in self.shape_layer_names: 
-            print('00000', bboxes[-1])
             self.viewer.layers[seg_layer_name].data = bboxes # hack to get edge_width stay the same!
             self.viewer.layers[seg_layer_name].properties = {'box_id': box_ids,'scores': scores}
             self.viewer.layers[seg_layer_name].edge_width = 12
@@ -155,13 +156,12 @@ class OrganoidCounterWidget(QWidget):
                                         edge_color='magenta',
                                         shape_type='rectangle',
                                         edge_width=12) # warning generated here
-                
                 # set up event handler for when data from this layer changes
-                self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
-        # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
-        self.viewer.layers[seg_layer_name].current_edge_width = 12
-        # and update cur_shapes to newly created shapes layer
-        self.cur_shapes = seg_layer_name
+                #self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
+            
+            # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
+            self.viewer.layers[seg_layer_name].current_edge_width = 12
+
 
     def _on_preprocess_click(self):
         """ Is called whenever preprocess button is clicked """
@@ -201,7 +201,10 @@ class OrganoidCounterWidget(QWidget):
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, box_ids = self.organoiDL.apply_params(self.confidence, self.min_diameter)
         # update the viewer with the new bboxes
-        self._update_vis_bboxes(bboxes, scores, box_ids)
+        seg_layer_name = 'Labels-'+self.image_layer_name
+        self._update_vis_bboxes(bboxes, scores, box_ids, seg_layer_name)
+        # and update cur_shapes to newly created shapes layer
+        self.cur_shapes = seg_layer_name
         # preprocess the image if not done so already to improve visualisation
         self._preprocess() 
 
@@ -220,7 +223,7 @@ class OrganoidCounterWidget(QWidget):
             elif self.viewer.layers[self.image_layer_name] is not None:
                 scale = self.viewer.layers[self.image_layer_name].scale
             else:
-                show_info('Could not lfind a loaded image or annotation file - please load and then select the model')
+                show_info('Could not find a loaded image or annotation file - please load and then select the model')
                 return
             self.organoiDL = OrganoiDL(scale,
                                        model_checkpoint=self.model_path, 
@@ -247,7 +250,7 @@ class OrganoidCounterWidget(QWidget):
             with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
                 # and get new boxes, scores and box ids based on new confidence and min_diameter values 
                 bboxes, scores, box_ids = self.organoiDL.apply_params(self.confidence, self.min_diameter)
-                self._update_vis_bboxes(bboxes, scores, box_ids)
+                self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes)
 
     def _on_diameter_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
@@ -269,24 +272,6 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever a new shapes layer has been selected from the drop down box """
         self.save_layer_name = self.output_layer_selection.currentText()
 
-    '''
-    def _on_update_click(self):
-        if not self.image_layer_name: show_info('Please load an image first and try again!')
-        else:
-            #selected_layer_name = self.output_layer_selection.currentText()
-            bboxes = self.viewer.layers[self.cur_shapes].data
-            self._update_num_organoids(len(bboxes))
-            self.num_organoids = len(bboxes)
-            new_text = 'Number of organoids: '+str(self.num_organoids)
-            self.organoid_number_label.setText(new_text)
-        
-            #self._preprocess()
-            #img_data = self.viewer.layers[self.image_layer_name].data # get pre-processed image!!!
-            #bboxes = self.viewer.layers['Labels-'+self.image_layer_name].data
-            #img_data = add_text_to_img(img_data, len(bboxes))
-            #self.viewer.layers[self.image_layer_name].data = img_data
-        
-    '''
     def _on_reset_click(self):
         """ Is called whenever Reset Configs button is clicked """
         # reset params
@@ -378,6 +363,7 @@ class OrganoidCounterWidget(QWidget):
         self.cur_shapes_layer = self.viewer.layers[self.cur_shapes] 
         # get the bounding box and update the displayed number of organoids
         bboxes = self.cur_shapes_layer.data
+
         self._update_num_organoids(len(bboxes)) 
         # and check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids
         
@@ -402,13 +388,14 @@ class OrganoidCounterWidget(QWidget):
             self.output_layer_selection.removeItem(item_id)
             if removed_layer==self.cur_shapes: 
                 self._update_num_organoids(0)
-                self.organoiDL.update_bboxes_scores([], [], [])
+                self.organoiDL = None
                 self.cur_shapes = '' # DO SOMETHING!
 
+    # the problem is that this event is called once before the drawing has been completed!!!!!!
     def shapes_event_handler(self, event):
         """
         This function will be called every time the current shapes layer data changes
-        """
+        """        
         # make sure this stuff isn't done if data in the layer has been changed by the sliders - only by the users
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
@@ -418,11 +405,11 @@ class OrganoidCounterWidget(QWidget):
         new_ids = self.viewer.layers[self.cur_shapes].properties['box_id']
         new_bboxes = self.cur_shapes_layer.data
         self._update_num_organoids(len(new_bboxes))
-
+        
         # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doens't work
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
-            if num_sim > 1: print('this shouldnt happend!!!!!!!!!!!!!!!!!!!!!!!!')
+            if num_sim > 1: print('this shouldnt happen!!!!!!!!!!!!!!!!!')
             else: 
                 new_ids[-1] = self.organoiDL.next_id
                 new_scores = self.viewer.layers[self.cur_shapes].properties['scores']
@@ -439,7 +426,7 @@ class OrganoidCounterWidget(QWidget):
         # and update the OrganoiDL instance
         self.organoiDL.update_next_id()
         self.organoiDL.update_bboxes_scores(new_bboxes, new_scores, new_ids)
-
+        
     def _setup_input_widget(self):
         """
         Sets up the GUI part which corresposnds to the input configurations
@@ -711,3 +698,4 @@ class OrganoidCounterWidget(QWidget):
         layer_names = [layer.name for layer in self.viewer.layers if type(layer) == layer_type]
         if layer_names: return [] + layer_names
         else: return []
+
