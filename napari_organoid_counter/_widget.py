@@ -81,37 +81,47 @@ class OrganoidCounterWidget(QWidget):
         self.cur_shapes_layer = None
         self.organoiDL = None
         self.num_organoids = 0
+        self.original_images = {}
+        self.original_contrast = {}
 
         # setup gui        
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(self._setup_input_widget())
         self.layout().addWidget(self._setup_output_widget())
 
-        # read already opened files
+        # get already opened layers
         self.image_layer_names = self._get_layer_names()
+        if self.image_layer_names: self._update_added_image(self.image_layer_names)
         self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
-        self.original_images = {}
-        self.original_contrast = {}
-        if self.image_layer_names: self._update_added_image([])
-        if self.shape_layer_names: self._update_added_shapes([])
-        
-        # watch for newly added images or shapes
-        self.viewer.layers.events.inserted.connect(self._added_or_removed_layer)
-        self.viewer.layers.events.removed.connect(self._added_or_removed_layer)
+        if self.shape_layer_names: self._update_added_shapes(self.shape_layer_names)
+        # and watch for newly added images or shapes
+        self.viewer.layers.events.inserted.connect(self._added_layer)
+        self.viewer.layers.events.removed.connect(self._removed_layer)
 
-    def _added_or_removed_layer(self, event): 
-        # get image and shape layers names
-        self.image_layer_names = self._get_layer_names()
-        self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
-        # and update whether a new image has been added or an image has been removed
-        current_selection_items = [self.image_layer_selection.itemText(i) for i in range(self.image_layer_selection.count())]
-        if self.image_layer_names: self._update_added_image(current_selection_items)
-        self._update_removed_image(current_selection_items)
-        # do the same with shapes layers
-        current_selection_items = [self.output_layer_selection.itemText(i) for i in range(self.output_layer_selection.count())]
-        if self.shape_layer_names: self._update_added_shapes(current_selection_items)
-        self._update_remove_shapes(current_selection_items)
-        
+    def _added_layer(self, event):
+        # get names of added layers, image and shapes
+        new_image_layer_names = self._get_layer_names()
+        new_shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
+        new_image_layer_names = [name for name in new_image_layer_names if name not in self.image_layer_names]
+        new_shape_layer_names = [name for name in new_shape_layer_names if name not in self.shape_layer_names]
+        if new_image_layer_names: 
+            self._update_added_image(new_image_layer_names)
+            self.image_layer_names.extend(new_image_layer_names)
+        if new_shape_layer_names:
+            self._update_added_shapes(new_shape_layer_names)
+            self.shape_layer_names.extend(new_shape_layer_names)
+            
+    def _removed_layer(self, event):
+        new_image_layer_names = self._get_layer_names()
+        new_shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
+        removed_image_layer_names = [name for name in self.image_layer_names if name not in new_image_layer_names]
+        removed_shape_layer_names = [name for name in self.shape_layer_names if name not in new_shape_layer_names]
+        if removed_image_layer_names:
+            self._update_removed_image(removed_image_layer_names)
+            self.image_layer_names = new_image_layer_names
+        if removed_shape_layer_names:
+            self._update_remove_shapes(removed_shape_layer_names)
+            self.shape_layer_names = new_shape_layer_names
 
     def _preprocess(self):
         """ Preprocess the current image in the viewer to improve visualisation for the user """
@@ -243,17 +253,21 @@ class OrganoidCounterWidget(QWidget):
 
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
-        # only run if OrganoiDL instance exists
-        if self.organoiDL is not None:
-            # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
-            with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
-                # first update bboxes in organoiDLin case user has added/removed
-                self.organoiDL.update_bboxes_scores(self.cur_shapes_layer.data, 
-                                self.cur_shapes_layer.properties['scores'],
-                                self.cur_shapes_layer.properties['box_id'])
-                # and get new boxes, scores and box ids based on new confidence and min_diameter values 
-                bboxes, scores, box_ids = self.organoiDL.apply_params(self.confidence, self.min_diameter)
-                self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes)
+        # check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids        
+        if self.organoiDL is None:
+            self.organoiDL = OrganoiDL(self.cur_shapes_layer.scale,
+                                       model_checkpoint=self.model_path)
+            self.organoiDL.update_next_id(len(bboxes)+1)
+
+        # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
+        with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
+            # first update bboxes in organoiDLin case user has added/removed
+            self.organoiDL.update_bboxes_scores(self.cur_shapes_layer.data, 
+                            self.cur_shapes_layer.properties['scores'],
+                            self.cur_shapes_layer.properties['box_id'])
+            # and get new boxes, scores and box ids based on new confidence and min_diameter values 
+            bboxes, scores, box_ids = self.organoiDL.apply_params(self.confidence, self.min_diameter)
+            self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes)
 
     def _on_diameter_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
@@ -328,64 +342,50 @@ class OrganoidCounterWidget(QWidget):
             name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
             if name: write_to_json(name, data_json)
 
-    def _update_added_image(self, current_selection_items):
+    def _update_added_image(self, added_items):
         """
         Update the selection box with new images if images have been added and update the self.original_images and self.original_contrast dicts.
         Set the latest added image to the current working image (self.image_layer_name)
         """
-        for layer_name in self.image_layer_names:
-            if layer_name not in current_selection_items: 
-                self.image_layer_selection.addItem(layer_name)
-                self.original_images[layer_name] = self.viewer.layers[layer_name].data
-                self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
+        for layer_name in added_items:
+            self.image_layer_selection.addItem(layer_name)
+            self.original_images[layer_name] = self.viewer.layers[layer_name].data
+            self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
         self.image_layer_name = self.image_layer_names[0]
 
-    def _update_removed_image(self, current_selection_items):
+    def _update_removed_image(self, removed_layers):
         """
         Update the selection box by removing image names if image has been deleted and remove items from self.original_images and self.original_contrast dicts.
         """
-        # find which layers have been removed
-        removed_layers = [name for name in current_selection_items if name not in self.image_layer_names]
+        # update drop-down selection box and remove image from dict
         for removed_layer in removed_layers:
             item_id = self.image_layer_selection.findText(removed_layer)
             self.image_layer_selection.removeItem(item_id)
             del self.original_images[removed_layer]
             del self.original_contrast[removed_layer]
 
-    def _update_added_shapes(self, current_selection_items):
+    def _update_added_shapes(self, added_items):
         """
         Update the selection box by shape layer names if it they have been added, update current working shape layer and instantiate OrganoiDL if not already there
         """
+        if not added_items: return
         # update the drop down box displaying shape layer names for saving
-        for layer_name in self.shape_layer_names:
-            if layer_name not in current_selection_items: 
-                self.output_layer_selection.addItem(layer_name)
+        for layer_name in added_items:
+            self.output_layer_selection.addItem(layer_name)
         # set the latest added shapes layer to the shapes layer that has been selected for saving and visualisation
         self.save_layer_name = self.shape_layer_names[0]
         self.cur_shapes = self.shape_layer_names[0]
         self.cur_shapes_layer = self.viewer.layers[self.cur_shapes] 
         # get the bounding box and update the displayed number of organoids
-        bboxes = self.cur_shapes_layer.data
-
-        self._update_num_organoids(len(bboxes)) 
-        # and check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids
-        
-        if self.organoiDL is None:
-            self.organoiDL = OrganoiDL(self.cur_shapes_layer.scale,
-                                       model_checkpoint=self.model_path)
-            self.organoiDL.update_bboxes_scores(bboxes, 
-                                            self.cur_shapes_layer.properties['scores'],
-                                            self.cur_shapes_layer.properties['box_id'])
-            self.organoiDL.update_next_id(len(bboxes)+1)
+        self._update_num_organoids(len(self.cur_shapes_layer.data)) 
         # listen for a data change in the current shapes layer
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
         
-    def _update_remove_shapes(self, current_selection_items):
+    def _update_remove_shapes(self, removed_layers):
         """
         Update the selection box by removing shape layer names if it they been deleted and set 
         """
         # update selection box by removing image names if image has been deleted       
-        removed_layers = [name for name in current_selection_items if name not in self.shape_layer_names]
         for removed_layer in removed_layers:
             item_id = self.output_layer_selection.findText(removed_layer)
             self.output_layer_selection.removeItem(item_id)
