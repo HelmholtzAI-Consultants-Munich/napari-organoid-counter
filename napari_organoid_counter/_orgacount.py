@@ -1,3 +1,4 @@
+import os
 import torch
 from torchvision.transforms import ToTensor
 from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view
@@ -11,15 +12,15 @@ def get_diams(bbox):
 class OrganoiDL():
     def __init__(self, 
                  img_scale,
-                 model_checkpoint='model-weights/model_v1.ckpt'):
+                 model_checkpoint=None):
         super().__init__()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
         self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        ckpt = torch.load(model_checkpoint, map_location=self.device)
-        self.model.load_state_dict(ckpt) #.state_dict())
+        if os.path.isfile(model_checkpoint):
+            self.load_model_checkpoint(model_checkpoint)
         self.model = self.model.to(self.device)
         self.transfroms = ToTensor()
 
@@ -28,6 +29,11 @@ class OrganoiDL():
         self.pred_ids = None
         self.img_scale = img_scale
         self.next_id = 0
+
+    def load_model_checkpoint(self, model_path):
+        ckpt = torch.load(model_path, map_location=self.device)
+        self.model.load_state_dict(ckpt) #.state_dict())
+
 
     def sliding_window(self, test_img, step, window_size, rescale_factor, pred_bboxes=[], scores_list=[]):
     
@@ -86,9 +92,7 @@ class OrganoiDL():
         pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh()
         if pred_bboxes.size(0)!=0:
             pred_bboxes, pred_scores, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_ids)
-        print('eeee', pred_bboxes[-1])
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
-        print('aaa', pred_bboxes[-1])
         return pred_bboxes, pred_scores, pred_ids
 
     def _apply_confidence_thresh(self):
@@ -110,7 +114,6 @@ class OrganoiDL():
             if (dx >= min_diameter_x and dy >= min_diameter_y) or pred_scores[idx] == 1: keep.append(idx) 
         pred_bboxes = pred_bboxes[keep]
         pred_scores = pred_scores[keep]
-        print(keep)
         pred_ids = [pred_ids[i] for i in keep]
         return pred_bboxes, pred_scores, pred_ids
 
@@ -128,7 +131,6 @@ class OrganoiDL():
             min_diameter_y = self.cur_min_diam / self.img_scale[1]
             # find ids that do are not in self.pred_ids but are in new_ids
             added_box_ids = list(set(new_ids).difference(self.pred_ids))
-            print('added: ', added_box_ids)
             if len(added_box_ids) > 0:
                 added_ids = [new_ids.index(box_id) for box_id in added_box_ids]
                 #  and add them
@@ -146,7 +148,6 @@ class OrganoiDL():
                     dx, dy  = get_diams(self.pred_bboxes[idx])
                     if self.pred_scores[idx] > self.cur_confidence and dx > min_diameter_x and dy > min_diameter_y:
                         remove_ids.append(idx)
-                print('removed:', remove_ids)
                 # and remove them
                 for idx in reversed(remove_ids):
                     self.pred_bboxes = torch.cat((self.pred_bboxes[:idx, :], self.pred_bboxes[idx+1:, :]))
