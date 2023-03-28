@@ -58,6 +58,7 @@ def get_bbox_diameters(bboxes, bbox_ids, scales):
         d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
         area = math.pi * d1 * d2
         data_csv.append([bbox_ids[idx], round(d1,3), round(d2,3), round(area,3)])
+    return data_csv
 
 def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
