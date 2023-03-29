@@ -126,6 +126,7 @@ class OrganoiDL():
             self.pred_bboxes = new_bboxes
             self.pred_scores = new_scores
             self.pred_ids = new_ids
+        elif len(new_ids)==0: return
         else:
             min_diameter_x = self.cur_min_diam / self.img_scale[0]
             min_diameter_y = self.cur_min_diam / self.img_scale[1]
