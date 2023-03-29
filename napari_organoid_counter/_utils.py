@@ -122,7 +122,7 @@ def convert_boxes_from_napari_view(pred_bboxes):
         y2 = pred_bboxes[idx][2][1]
         # convert to tensor and append to list
         new_boxes.append(torch.Tensor([x1, y1, x2, y2]))
-    new_boxes = torch.stack(new_boxes)
+    if len(new_boxes) > 0: new_boxes = torch.stack(new_boxes)
     return new_boxes
 
 def apply_normalization(img):
