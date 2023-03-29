@@ -32,10 +32,16 @@ You can install `napari-organoid-counter` via [pip]:
     pip install napari-organoid-counter
 
 
-
 To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+    
+    
+For the dev branch you can clone this repo and install with:
+
+    pip install -e .  
+
+Then run napari on your terminal.
 
 
 ## Contributing
