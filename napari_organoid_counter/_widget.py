@@ -91,9 +91,9 @@ class OrganoidCounterWidget(QWidget):
 
         # get already opened layers
         self.image_layer_names = self._get_layer_names()
-        if self.image_layer_names: self._update_added_image(self.image_layer_names)
+        if len(self.image_layer_names)>0: self._update_added_image(self.image_layer_names)
         self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
-        if self.shape_layer_names: self._update_added_shapes(self.shape_layer_names)
+        if len(self.shape_layer_names)>0: self._update_added_shapes(self.shape_layer_names)
         # and watch for newly added images or shapes
         self.viewer.layers.events.inserted.connect(self._added_layer)
         self.viewer.layers.events.removed.connect(self._removed_layer)
@@ -104,10 +104,10 @@ class OrganoidCounterWidget(QWidget):
         new_shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
         new_image_layer_names = [name for name in new_image_layer_names if name not in self.image_layer_names]
         new_shape_layer_names = [name for name in new_shape_layer_names if name not in self.shape_layer_names]
-        if new_image_layer_names: 
+        if len(new_image_layer_names)>0 : 
             self._update_added_image(new_image_layer_names)
             self.image_layer_names.extend(new_image_layer_names)
-        if new_shape_layer_names:
+        if len(new_shape_layer_names)>0:
             self._update_added_shapes(new_shape_layer_names)
             self.shape_layer_names.extend(new_shape_layer_names)
             
@@ -116,10 +116,10 @@ class OrganoidCounterWidget(QWidget):
         new_shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
         removed_image_layer_names = [name for name in self.image_layer_names if name not in new_image_layer_names]
         removed_shape_layer_names = [name for name in self.shape_layer_names if name not in new_shape_layer_names]
-        if removed_image_layer_names:
+        if len(removed_image_layer_names)>0:
             self._update_removed_image(removed_image_layer_names)
             self.image_layer_names = new_image_layer_names
-        if removed_shape_layer_names:
+        if len(removed_shape_layer_names)>0:
             self._update_remove_shapes(removed_shape_layer_names)
             self.shape_layer_names = new_shape_layer_names
 
@@ -257,7 +257,7 @@ class OrganoidCounterWidget(QWidget):
         if self.organoiDL is None:
             self.organoiDL = OrganoiDL(self.cur_shapes_layer.scale,
                                        model_checkpoint=self.model_path)
-            self.organoiDL.update_next_id(len(bboxes)+1)
+            self.organoiDL.update_next_id(len(self.cur_shapes_layer.scale)+1)
 
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
         with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
@@ -351,7 +351,7 @@ class OrganoidCounterWidget(QWidget):
             self.image_layer_selection.addItem(layer_name)
             self.original_images[layer_name] = self.viewer.layers[layer_name].data
             self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
-        self.image_layer_name = self.image_layer_names[0]
+        self.image_layer_name = added_items[0]
 
     def _update_removed_image(self, removed_layers):
         """
@@ -368,13 +368,12 @@ class OrganoidCounterWidget(QWidget):
         """
         Update the selection box by shape layer names if it they have been added, update current working shape layer and instantiate OrganoiDL if not already there
         """
-        if not added_items: return
         # update the drop down box displaying shape layer names for saving
         for layer_name in added_items:
             self.output_layer_selection.addItem(layer_name)
         # set the latest added shapes layer to the shapes layer that has been selected for saving and visualisation
-        self.save_layer_name = self.shape_layer_names[0]
-        self.cur_shapes = self.shape_layer_names[0]
+        self.save_layer_name = added_items[0]
+        self.cur_shapes = added_items[0]
         self.cur_shapes_layer = self.viewer.layers[self.cur_shapes] 
         # get the bounding box and update the displayed number of organoids
         self._update_num_organoids(len(self.cur_shapes_layer.data)) 
