@@ -35,15 +35,10 @@ jobs:
       # these libraries enable testing on Qt on linux
       - uses: tlambert03/setup-qt-libs@v1
 
-      # note: if you need dependencies from conda, considering using
-      # setup-miniconda: https://github.com/conda-incubator/setup-miniconda
-      # and
-      # tox-conda: https://github.com/tox-dev/tox-conda
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest tox
-          pip install git+https://github.com/hackebrot/pytest-cookies.git@refs/pull/61/head
+          python -m pip install pytest pytest-cookies tox
 
       # this runs the platform-specific tests declared in tox.ini
       
