@@ -39,24 +39,16 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert 'Labels-Test' in layer_names
     
     # test that class attributes are updated when user changes values from GUI
-    my_widget._on_downsampling_changed()
-    assert my_widget.downsampling == my_widget.downsampling_slider.value()
-
     my_widget._on_diameter_changed()
     assert my_widget.min_diameter == my_widget.min_diameter_slider.value()
 
-    my_widget._on_sigma_changed()
-    assert my_widget.sigma == my_widget.sigma_slider.value()
-
-    my_widget._image_selection_changed()
+    my_widget._on_image_selection_changed()
     assert my_widget.image_layer_name == my_widget.image_layer_selection.currentText()
 
     # test that number of organoids is updated after manual corrections
 
     # test that reset button resets all parameters to default settings 
     my_widget._on_reset_click()
-    assert my_widget.downsampling==2
-    assert my_widget.downsampling_slider.value()==4
     assert my_widget.min_diameter==30
     assert my_widget.min_diameter_slider.value()==30
     assert my_widget.confidence==0.8

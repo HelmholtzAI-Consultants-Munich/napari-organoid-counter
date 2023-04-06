@@ -1,5 +1,5 @@
+import json
 import numpy as np
-
 from napari_organoid_counter import get_reader
 
 
@@ -9,6 +9,9 @@ def test_reader(tmp_path):
 
     # write some fake data using your supported file format
     my_test_file = str(tmp_path / 'myfile.json')
+    bboxes = [np.array([[2000,2000], [2000,2500], [2500,2500], [2500,2000]]),
+              np.array([[3000,3000], [3000,3500], [3500,3500], [3500,3000]])]
+
     original_data = {
         '1':{
             'box_id': '1',
@@ -32,7 +35,7 @@ def test_reader(tmp_path):
         }
     }
     with open(my_test_file, 'w') as outfile:
-        outfile.write(original_data)
+        outfile.write(json.dumps(original_data))
 
     # try to read it back in
     reader = get_reader(my_test_file) #reader should return [(bboxes, layer_attributes, 'shapes')]
@@ -46,7 +49,11 @@ def test_reader(tmp_path):
 
     # make sure it's the same as it started
     data = layer_data_tuple[0]
-    assert data==original_data
+    for idx, bbox in enumerate(bboxes):
+        print(data[idx])
+        print('AAAAAAA')
+        print(bbox)
+        assert (data[idx]==bbox).all()
 
     # and that correct attributes and layer type is set
     attributes = layer_data_tuple[1]
