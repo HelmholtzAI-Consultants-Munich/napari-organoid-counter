@@ -50,9 +50,6 @@ def test_reader(tmp_path):
     # make sure it's the same as it started
     data = layer_data_tuple[0]
     for idx, bbox in enumerate(bboxes):
-        print(data[idx])
-        print('AAAAAAA')
-        print(bbox)
         assert (data[idx]==bbox).all()
 
     # and that correct attributes and layer type is set
