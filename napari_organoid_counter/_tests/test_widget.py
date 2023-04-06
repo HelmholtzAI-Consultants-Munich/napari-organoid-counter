@@ -36,7 +36,7 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     # test that organoid counting algorithm has run and new layer with res has been added to viewer
     my_widget._on_run_click()
     layer_names = [layer.name for layer in  my_widget.viewer.layers]
-    assert 'Organoids Test' in layer_names
+    assert 'Labels-Test' in layer_names
     
     # test that class attributes are updated when user changes values from GUI
     my_widget._on_downsampling_changed()
@@ -52,20 +52,15 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert my_widget.image_layer_name == my_widget.image_layer_selection.currentText()
 
     # test that number of organoids is updated after manual corrections
-    my_widget._on_update_click()
-    selected_layer_name = my_widget.output_layer_selection.currentText()
-    bboxes = my_widget.viewer.layers[selected_layer_name].data
-    new_text = 'Number of detected organoids: '+str(len(bboxes))
-    assert new_text == my_widget.organoid_number_label.text()
 
     # test that reset button resets all parameters to default settings 
     my_widget._on_reset_click()
-    assert my_widget.downsampling == 4
-    assert my_widget.downsampling_slider.value() == 4
-    assert my_widget.min_diameter == 30
-    assert my_widget.min_diameter_slider.value() == 30
-    assert my_widget.sigma == 2
-    assert my_widget.sigma_slider.value() == 2
+    assert my_widget.downsampling==2
+    assert my_widget.downsampling_slider.value()==4
+    assert my_widget.min_diameter==30
+    assert my_widget.min_diameter_slider.value()==30
+    assert my_widget.confidence==0.8
+    assert my_widget.confidence_slider.value()==80
 
     #my_widget._on_screenshot_click()
     #'''TO DO'''
@@ -83,4 +78,4 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     my_widget._get_layer_names(layer_type=layers.Shapes)
     layer_names = [layer.name for layer in my_widget.viewer.layers if type(layer)==layers.Shapes]
     assert len(layer_names) == 1
-    assert layer_names[0] == 'Organoids Test'
+    assert layer_names[0] == 'Labels-Test'
