@@ -1,13 +1,8 @@
 import os
 import torch
 from torchvision.transforms import ToTensor
-from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view
-
-def get_diams(bbox):
-    x1_real, y1_real, x2_real, y2_real = bbox
-    dx = abs(x1_real - x2_real)
-    dy = abs(y1_real - y2_real)
-    return dx, dy
+from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams
+import subprocess
 
 class OrganoiDL():
     def __init__(self, 
@@ -19,8 +14,10 @@ class OrganoiDL():
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
         self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        if os.path.isfile(model_checkpoint):
-            self.load_model_checkpoint(model_checkpoint)
+        self.model_checkpoint = model_checkpoint
+        if not os.path.isfile(self.model_checkpoint):
+            self.download_model()
+        self.load_model_checkpoint(self.model_checkpoint)
         self.model = self.model.to(self.device)
         self.transfroms = ToTensor()
 
@@ -30,10 +27,14 @@ class OrganoiDL():
         self.img_scale = img_scale
         self.next_id = 0
 
+    def download_model(self):
+        subprocess.run(["zenodo_get","10.5281/zenodo.7708763","-o", "model"])
+        self.model_checkpoint = os.path.join(os.getcwd(), 'model', 'model_v1.ckpt')
+        #zenodo_get(['10.5281/zenodo.7708763'])
+
     def load_model_checkpoint(self, model_path):
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
-
 
     def sliding_window(self, test_img, step, window_size, rescale_factor, pred_bboxes=[], scores_list=[]):
     

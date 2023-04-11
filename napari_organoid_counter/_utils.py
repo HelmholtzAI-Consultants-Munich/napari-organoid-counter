@@ -19,6 +19,13 @@ def set_dict_key(dictionary, key, value):
     yield
     del dictionary[key]
 
+def get_diams(bbox):
+    """ Get the lengths of the bounding boxes """
+    x1_real, y1_real, x2_real, y2_real = bbox
+    dx = abs(x1_real - x2_real)
+    dy = abs(y1_real - y2_real)
+    return dx, dy
+
 def write_to_json(name, data):
     """ Write data to a json file. Here data is a dict """
     with open(name, 'w') as outfile:

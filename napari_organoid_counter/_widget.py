@@ -58,7 +58,7 @@ class OrganoidCounterWidget(QWidget):
     '''
     def __init__(self, 
                 napari_viewer,
-                model_path: str = 'model-weights/model_v1.ckpt',
+                model_path: str = 'model/model_v1.ckpt',
                 window_sizes: List = [2048],
                 downsampling: List = [2],
                 min_diameter: int = 30,
@@ -186,8 +186,12 @@ class OrganoidCounterWidget(QWidget):
                                            model_checkpoint=self.model_path
                                            )
             else:
-                show_info('Make sure to select the correct model path!')
-                return
+                #show_info('Make sure to select the correct model path!')
+                show_info('Model not found locally. Downloading default model instead!')
+                self.organoiDL = OrganoiDL(self.viewer.layers[self.image_layer_name].scale,
+                                           model_checkpoint=self.model_path
+                                           )
+                
         # and if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
