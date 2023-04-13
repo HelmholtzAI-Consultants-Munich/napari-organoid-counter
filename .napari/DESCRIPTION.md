@@ -4,15 +4,20 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin.gif)
 
-## Intended Audience & Supported Data
+## What's new in v2?
+Here is a list of the main changes v2 of napari-organoid-counter offers:
+* Use of Faster R-CNN model for object detection 
+* Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsamplign rate
+* Model confidence added as tunable parameter
+* Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
+* Object ID along with model confidence displayed in the viewer - this can now be related to box id in csv file of extracted features
+* _Fixed:_ box thickness changing at different donwsampling rates
+* Possibility to work interactively with different shape layers at the same time, go back adjust parameters and switch between shape layers from layer list selection
 
-This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images had been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
+Technical Extensions:
+* Allows for Python 3.10
+* Extensive testing
 
-## Dependencies
-
-```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> plugin for reading and processing CZI images.
-
-[1] AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
 
 ## Quickstart
 
@@ -32,6 +37,16 @@ The use of the napari-organoid-counter plugin is straightforward. Here is a step
 ## Getting Help
 
 If you encounter any problems, please [file an issue] along with a detailed description.
+
+## Intended Audience & Supported Data
+
+This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images had been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
+
+## Dependencies
+
+```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> plugin for reading and processing CZI images.
+
+[1] AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
 
 ## How to Cite
 If you use this plugin for your work, please cite it using the following:
