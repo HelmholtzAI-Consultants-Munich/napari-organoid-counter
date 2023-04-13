@@ -21,11 +21,11 @@ class OrganoiDL():
         self.model = self.model.to(self.device)
         self.transfroms = ToTensor()
 
-        self.pred_bboxes = None
-        self.pred_scores = None
-        self.pred_ids = None
         self.img_scale = img_scale
-        self.next_id = 0
+        self.pred_bboxes = {}
+        self.pred_scores = {}
+        self.pred_ids = {}
+        self.next_id = {}
 
     def download_model(self):
         subprocess.run(["zenodo_get","10.5281/zenodo.7708763","-o", "model"])
@@ -61,6 +61,7 @@ class OrganoiDL():
 
     def run(self, 
             img, 
+            shapes_name,
             window_sizes,
             downsampling_sizes,   
             window_overlap):
@@ -82,26 +83,28 @@ class OrganoiDL():
         bboxes = torch.stack(bboxes)
         scores = torch.stack(scores)
         # apply NMS to remove overlaping boxes
-        self.pred_bboxes, self.pred_scores = apply_nms(bboxes, scores)
-        num_predictions = self.pred_bboxes.size(0)
-        self.pred_ids = [(i+1) for i in range(num_predictions)]
-        self.next_id = num_predictions+1
+        bboxes, pred_scores = apply_nms(bboxes, scores)
+        self.pred_bboxes[shapes_name] = bboxes
+        self.pred_scores[shapes_name] = pred_scores
+        num_predictions = bboxes.size(0)
+        self.pred_ids[shapes_name] = [(i+1) for i in range(num_predictions)]
+        self.next_id[shapes_name] = num_predictions+1
 
-    def apply_params(self, confidence, min_diameter_um):
+    def apply_params(self, shapes_name, confidence, min_diameter_um):
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um
-        pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh()
+        pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh(shapes_name)
         if pred_bboxes.size(0)!=0:
             pred_bboxes, pred_scores, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_ids)
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
         return pred_bboxes, pred_scores, pred_ids
 
-    def _apply_confidence_thresh(self):
-        if self.pred_bboxes is None: return None
-        keep = (self.pred_scores>self.cur_confidence).nonzero(as_tuple=True)[0]
-        result_bboxes = self.pred_bboxes[keep]
-        result_scores = self.pred_scores[keep]
-        result_ids = [self.pred_ids[int(i)] for i in keep.tolist()]
+    def _apply_confidence_thresh(self, shapes_name):
+        if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
+        keep = (self.pred_scores[shapes_name]>self.cur_confidence).nonzero(as_tuple=True)[0]
+        result_bboxes = self.pred_bboxes[shapes_name][keep]
+        result_scores = self.pred_scores[shapes_name][keep]
+        result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
         return result_bboxes, result_scores, result_ids
     
     def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_ids):
@@ -118,48 +121,48 @@ class OrganoiDL():
         pred_ids = [pred_ids[i] for i in keep]
         return pred_bboxes, pred_scores, pred_ids
 
-    def update_bboxes_scores(self, new_bboxes, new_scores, new_ids):
+    def update_bboxes_scores(self, shapes_name, new_bboxes, new_scores, new_ids):
         new_bboxes = convert_boxes_from_napari_view(new_bboxes)
         new_scores =  torch.Tensor(list(new_scores))
         new_ids = list(new_ids)
         # if run hasn't been run
-        if self.pred_bboxes is None:
-            self.pred_bboxes = new_bboxes
-            self.pred_scores = new_scores
-            self.pred_ids = new_ids
+        if shapes_name not in self.pred_bboxes.keys():
+            self.pred_bboxes[shapes_name] = new_bboxes
+            self.pred_scores[shapes_name] = new_scores
+            self.pred_ids[shapes_name] = new_ids
         elif len(new_ids)==0: return
         else:
             min_diameter_x = self.cur_min_diam / self.img_scale[0]
             min_diameter_y = self.cur_min_diam / self.img_scale[1]
             # find ids that do are not in self.pred_ids but are in new_ids
-            added_box_ids = list(set(new_ids).difference(self.pred_ids))
+            added_box_ids = list(set(new_ids).difference(self.pred_ids[shapes_name]))
             if len(added_box_ids) > 0:
                 added_ids = [new_ids.index(box_id) for box_id in added_box_ids]
                 #  and add them
-                self.pred_bboxes = torch.cat((self.pred_bboxes, new_bboxes[added_ids]))
-                self.pred_scores = torch.cat((self.pred_scores, new_scores[added_ids]))
+                self.pred_bboxes[shapes_name] = torch.cat((self.pred_bboxes[shapes_name], new_bboxes[added_ids]))
+                self.pred_scores[shapes_name] = torch.cat((self.pred_scores[shapes_name], new_scores[added_ids]))
                 new_ids_to_add = [new_ids[i] for i in added_ids]
-                self.pred_ids.extend(new_ids_to_add)
+                self.pred_ids[shapes_name].extend(new_ids_to_add)
             
             # and find ids that are in self.pred_ids and not in new_ids
-            potential_removed_box_ids = list(set(self.pred_ids).difference(new_ids))
+            potential_removed_box_ids = list(set(self.pred_ids[shapes_name]).difference(new_ids))
             if len(potential_removed_box_ids) > 0:
-                potential_removed_ids = [self.pred_ids.index(box_id) for box_id in potential_removed_box_ids]
+                potential_removed_ids = [self.pred_ids[shapes_name].index(box_id) for box_id in potential_removed_box_ids]
                 remove_ids = []
                 for idx in potential_removed_ids:
-                    dx, dy  = get_diams(self.pred_bboxes[idx])
-                    if self.pred_scores[idx] > self.cur_confidence and dx > min_diameter_x and dy > min_diameter_y:
+                    dx, dy  = get_diams(self.pred_bboxes[shapes_name][idx])
+                    if self.pred_scores[shapes_name][idx] > self.cur_confidence and dx > min_diameter_x and dy > min_diameter_y:
                         remove_ids.append(idx)
                 # and remove them
                 for idx in reversed(remove_ids):
-                    self.pred_bboxes = torch.cat((self.pred_bboxes[:idx, :], self.pred_bboxes[idx+1:, :]))
-                    self.pred_scores = torch.cat((self.pred_scores[:idx], self.pred_scores[idx+1:]))
-                    new_pred_ids = self.pred_ids[:idx]
-                    new_pred_ids.extend(self.pred_ids[idx+1:])
-                    self.pred_ids = new_pred_ids
+                    self.pred_bboxes[shapes_name] = torch.cat((self.pred_bboxes[shapes_name][:idx, :], self.pred_bboxes[shapes_name][idx+1:, :]))
+                    self.pred_scores[shapes_name] = torch.cat((self.pred_scores[shapes_name][:idx], self.pred_scores[shapes_name][idx+1:]))
+                    new_pred_ids = self.pred_ids[shapes_name][:idx]
+                    new_pred_ids.extend(self.pred_ids[shapes_name][idx+1:])
+                    self.pred_ids[shapes_name] = new_pred_ids
 
-    def update_next_id(self, c=0):
+    def update_next_id(self, shapes_name, c=0):
         if c!=0:
-            self.next_id = c
-        else: self.next_id += 1
+            self.next_id[shapes_name] = c
+        else: self.next_id[shapes_name] += 1
 
