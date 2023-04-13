@@ -1,7 +1,5 @@
 # napari-organoid-counter - Version 0.2 is out! 
 
-**Note!** To test this model you will need a Pytorch Faster R-CNN organoid detection model saved as a .ckpt. Please contact us if you do not have such a model and still wish to try out our plugin.
-
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
 [![License](https://img.shields.io/pypi/l/napari-organoid-counter.svg?color=green)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/raw/main/LICENSE)
@@ -38,6 +36,9 @@ You can install `napari-organoid-counter` via [pip]:
 To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+
+## How to use?
+For more information on this plugin, its' intended audience, as well as Quickstart guide go to our ![Description](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md).
 
 
 ## Contributing
