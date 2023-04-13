@@ -1,7 +1,5 @@
 # napari-organoid-counter - Version 0.2 is out! 
 
-**Note!** To test this model you will need a Pytorch Faster R-CNN organoid detection model saved as a .ckpt. Please contact us if you do not have such a model and still wish to try out our plugin.
-
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
 [![License](https://img.shields.io/pypi/l/napari-organoid-counter.svg?color=green)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/raw/main/LICENSE)
@@ -19,13 +17,6 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/plugins/stable/index.html
--->
 
 ## Installation
 
@@ -39,6 +30,12 @@ To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
 
+
+## What's new in v2?
+Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#whats-new-in-v2).
+
+## How to use?
+For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#quickstart).
 
 ## Contributing
 
