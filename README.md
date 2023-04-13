@@ -30,11 +30,12 @@ To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
 
-## How to use?
-For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#quickstart).
 
 ## What's new in v2?
-Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#quickstart).
+Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#whats-new-in-v2).
+
+## How to use?
+For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/.napari/DESCRIPTION.md#quickstart).
 
 ## Contributing
 
