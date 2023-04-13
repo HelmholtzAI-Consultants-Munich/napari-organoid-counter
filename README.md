@@ -11,7 +11,7 @@
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. *Note that this only works for one channel grayscale images.*
 
-![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin.gif)
+![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/readme-content/demo-plugin-v2.gif)
 
 ----------------------------------
 
