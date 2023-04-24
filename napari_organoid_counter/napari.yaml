@@ -5,6 +5,14 @@ contributions:
     - id: napari-organoid-counter.OrganoidCounterWidget
       python_name: napari_organoid_counter._widget:OrganoidCounterWidget
       title: Make organoid counter widget
+    - id: napari-organoid-counter.get_reader
+      title: Read ".json" annotation files
+      python_name: napari_organoid_counter._reader:get_reader
   widgets:
     - command: napari-organoid-counter.OrganoidCounterWidget
       display_name: Organoid-Counter
+  readers:
+    - command: napari-organoid-counter.get_reader
+      filename_patterns:
+      - '*.json'
+      accepts_directories: false

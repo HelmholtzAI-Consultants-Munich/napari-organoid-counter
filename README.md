@@ -1,4 +1,4 @@
-# napari-organoid-counter
+# napari-organoid-counter - Version 0.2 is out! 
 
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
@@ -11,19 +11,12 @@
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. *Note that this only works for one channel grayscale images.*
 
-![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin.gif)
+![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
 
 ----------------------------------
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/plugins/stable/index.html
--->
 
 ## Installation
 
@@ -32,11 +25,23 @@ You can install `napari-organoid-counter` via [pip]:
     pip install napari-organoid-counter
 
 
-
 To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+    
+    
+For the dev branch you can clone this repo and install with:
 
+    pip install -e .  
+
+Then run napari on your terminal.
+
+
+## What's new in v2?
+Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
+
+## How to use?
+For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#quickstart).
 
 ## Contributing
 
