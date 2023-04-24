@@ -36,7 +36,6 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     # test that organoid counting algorithm has run and new layer with res has been added to viewer
     my_widget._on_run_click()
     layer_names = [layer.name for layer in  my_widget.viewer.layers]
-    print('AAAAAA', layer_names)
     assert 'Labels-Test' in layer_names
     
     # test that class attributes are updated when user changes values from GUI
