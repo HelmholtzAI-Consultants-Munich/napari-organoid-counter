@@ -2,7 +2,7 @@
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. A Faster R-CNN model was trained on patches of microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predictiing on multiple window sizes and scales, the results of which are then merged using NMS.
 
-![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/dev-v.0.2/readme-content/demo-plugin-v2)
+![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2)
 
 ## What's new in v2?
 Here is a list of the main changes v2 of napari-organoid-counter offers:
