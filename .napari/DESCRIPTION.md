@@ -1,13 +1,13 @@
 ## Description
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. A Faster R-CNN model was trained on patches of microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predictiing on multiple window sizes and scales, the results of which are then merged using NMS.
+A napari plugin to automatically count lung organoids from microscopy imaging data. A Faster R-CNN model was trained on patches of microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
 
 ## What's new in v2?
 Here is a list of the main changes v2 of napari-organoid-counter offers:
 * Use of Faster R-CNN model for object detection 
-* Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsamplign rate
+* Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
 * Model confidence added as tunable parameter
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
 * Object ID along with model confidence displayed in the viewer - this can now be related to box id in csv file of extracted features
@@ -18,6 +18,17 @@ Technical Extensions:
 * Allows for Python 3.10
 * Extensive testing
 
+## Installation
+
+You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
+
+    pip install napari-organoid-counter
+
+
+To install latest development version :
+
+    pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+ 
 
 ## Quickstart
 
@@ -36,34 +47,39 @@ The use of the napari-organoid-counter plugin is straightforward. Here is a step
 
 ## Getting Help
 
-If you encounter any problems, please [file an issue] along with a detailed description.
+If you encounter any problems, please [file an issue](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues) along with a detailed description.
 
 ## Intended Audience & Supported Data
 
-This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images had been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
+This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images have been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin only supports single channel grayscale images. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
 
 ## Dependencies
 
-```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> plugin for reading and processing CZI images.
+```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> <sup>[2]</sup> plugin for reading and processing CZI images.
 
-[1] AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
+[1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
+
+[2] Eva Maxfield Brown, Talley Lambert, Peter Sobolewski, Napari-AICSImageIO Contributors (2021). Napari-AICSImageIO: Image Reading in Napari using AICSImageIO [Computer software]. GitHub. https://github.com/AllenCellModeling/napari-aicsimageio
 
 ## How to Cite
 If you use this plugin for your work, please cite it using the following:
 ```
+Christina Bukas. (2023). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.0 (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.7859571
+```
+bibtex:
+```
 @software{christina_bukas_2022_6457904,
   author       = {Christina Bukas},
   title        = {{HelmholtzAI-Consultants-Munich/napari-organoid- 
-                   counter: first release of napari plugin for lung
+                   counter: second release of the napari plugin for lung
                    organoid counting}},
   month        = apr,
-  year         = 2022,
+  year         = 2023,
   publisher    = {Zenodo},
-  version      = {v0.1.0-beta},
-  doi          = {10.5281/zenodo.6457904},
-  url          = {https://doi.org/10.5281/zenodo.6457904}
+  version      = {v0.2.0},
+  doi          = {10.5281/zenodo.7859571},
+  url          = {https://doi.org/10.5281/zenodo.7859571}
 }
 ```
-
 
 
