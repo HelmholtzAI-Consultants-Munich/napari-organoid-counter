@@ -63,13 +63,13 @@ This plugin has been developed and tested with 2D CZI microscopy images of lunch
 
 ## How to Cite
 If you use this plugin for your work, please cite it using the following:
-```
-Christina Bukas. (2023). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.0 (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.7859571
-```
+
+> Christina Bukas, Harshavardhan Subramanian, & Marie Piraud. (2023). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.0 (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.7859571
+> 
 bibtex:
 ```
 @software{christina_bukas_2022_6457904,
-  author       = {Christina Bukas},
+  author       = {Christina Bukas, Harshavardhan Subramanian, & Marie Piraud},
   title        = {{HelmholtzAI-Consultants-Munich/napari-organoid- 
                    counter: second release of the napari plugin for lung
                    organoid counting}},
