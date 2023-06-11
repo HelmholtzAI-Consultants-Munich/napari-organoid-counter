@@ -36,12 +36,13 @@ class OrganoiDL():
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
 
-    def sliding_window(self, test_img, step, window_size, rescale_factor, pred_bboxes=[], scores_list=[]):
+    def sliding_window(self, test_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, pred_bboxes=[], scores_list=[]):
     
-        img_height, img_width = test_img.size(2), test_img.size(3)
+        #img_height, img_width = test_img.size(2), test_img.size(3)
 
-        for i in range(0, img_height, step):
-            for j in range(0, img_width, step):
+        for i in range(0, prepadded_height, step):
+            for j in range(0, prepadded_width, step):
+                
                 # crop
                 img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
                 # get predictions
@@ -77,8 +78,8 @@ class OrganoiDL():
             window_size = round(window_size * rescale_factor)
             step = round(window_size * window_overlap)
             # prepare image for model - norm, tensor, etc.
-            ready_img = prepare_img(img, step, window_size, rescale_factor, self.transfroms , self.device)
-            bboxes, scores = self.sliding_window(ready_img, step, window_size, rescale_factor, bboxes, scores)
+            ready_img, prepadded_height, prepadded_width  = prepare_img(img, step, window_size, rescale_factor, self.transfroms , self.device)
+            bboxes, scores = self.sliding_window(ready_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, bboxes, scores)
 
         bboxes = torch.stack(bboxes)
         scores = torch.stack(scores)
