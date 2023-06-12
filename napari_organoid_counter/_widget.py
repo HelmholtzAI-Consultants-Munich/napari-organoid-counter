@@ -25,7 +25,7 @@ class OrganoidCounterWidget(QWidget):
             The current napari viewer
         model_path: string, default 'model-weights/model_v1.ckpt'
             The relative path to the detection model used for organoid counting - will append current working dir to this path
-        window_sizes: list of ints, default [2048]
+        window_sizes: list of ints, default [1024]
             A list with the sizes of the windows on which the model will be run. If more than one window_size is given then the model will run on several window sizes and then 
             combne the results
         downsampling:list of ints, default [2]
@@ -59,12 +59,12 @@ class OrganoidCounterWidget(QWidget):
     def __init__(self, 
                 napari_viewer,
                 model_path: str = 'model/model_v1.ckpt',
-                window_sizes: List = [2048],
+                window_sizes: List = [1024],
                 downsampling: List = [2],
                 min_diameter: int = 30,
                 confidence: float = 0.8):
         super().__init__()
-        
+
         # assign class variables
         self.viewer = napari_viewer 
         self.model_path = os.path.join(os.getcwd(), model_path)
@@ -100,7 +100,9 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.inserted.connect(self._added_layer)
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
-    
+
+        #self.slider_changed = False # used for changing slider and text of min diameter
+
     def _sel_layer_changed(self, event):
         cur_layer_list = list(self.viewer.layers.selection)
         if len(cur_layer_list)==0: return
@@ -115,6 +117,7 @@ class OrganoidCounterWidget(QWidget):
             # update min diameter text and slider with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
             self.min_diameter_slider.setValue(self.min_diameter)
+            #self.min_diameter_label.setText('Minimum Diameter [um]: ')
             self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
             # update confidence text and slider with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
@@ -232,12 +235,15 @@ class OrganoidCounterWidget(QWidget):
             return 
         # update the viewer with the new bboxes
         labels_layer_name = 'Labels-'+self.image_layer_name
+        if labels_layer_name in self.shape_layer_names:
+            show_info('Found existing labels layer. Please remove or rename it and try again!')
+            return 
         # run inference
         self.organoiDL.run(img_data, 
                            labels_layer_name,
                            self.window_sizes,
                            self.downsampling,
-                           window_overlap = 1)# 0.5)
+                           window_overlap = 0.5)
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
 
@@ -299,12 +305,30 @@ class OrganoidCounterWidget(QWidget):
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
             bboxes, scores, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
             self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes_name)
-
+    
     def _on_diameter_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
         self.min_diameter = self.min_diameter_slider.value()
         self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
         self._rerun()
+
+    '''
+    def _on_diameter_slider_changed(self):
+        """ Is called whenever user changes the Minimum Diameter slider """
+        self.min_diameter = self.min_diameter_slider.value()
+        self.slider_changed = True
+        if int(self.min_diameter_textbox.text())!= self.min_diameter:
+            self.min_diameter_textbox.setText(str(self.min_diameter))
+        self._rerun()
+        self.slider_changed = False
+    
+    def _on_diameter_textbox_changed(self):
+        if self.slider_changed: return
+        self.min_diameter = int(self.min_diameter_textbox.text())
+        if self.min_diameter_slider.value() != self.min_diameter:
+            self.min_diameter_slider.setValue(self.min_diameter)
+        self._rerun()
+    '''
 
     def _on_confidence_changed(self):
         """ Is called whenever user changes the confidence slider """
@@ -435,7 +459,7 @@ class OrganoidCounterWidget(QWidget):
         new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
         self._update_num_organoids(len(new_ids))
         
-        # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doens't work
+        # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doesn't work
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
             if num_sim > 1: print('this should not happen!!!!!!!!!!!!!!!!!')
@@ -617,12 +641,21 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_slider.setMaximum(100)
         self.min_diameter_slider.setSingleStep(10)
         self.min_diameter_slider.setValue(self.min_diameter)
+        #self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
         self.min_diameter_slider.valueChanged.connect(self._on_diameter_changed)
         # set up the label
+        #self.min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
         self.min_diameter_label = QLabel('Minimum Diameter [um]: '+str(self.min_diameter), self)
         self.min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        '''
+        # set up text box
+        self.min_diameter_textbox = QLineEdit(self)
+        self.min_diameter_textbox.setText(str(self.min_diameter))
+        self.min_diameter_textbox.returnPressed.connect(self._on_diameter_textbox_changed)
+        '''
         # and add all these to the layout
         hbox.addWidget(self.min_diameter_label)
+        #hbox.addWidget(self.min_diameter_textbox)
         hbox.addSpacing(15)
         hbox.addWidget(self.min_diameter_slider)
         #self.min_diameter_box.setLayout(hbox)

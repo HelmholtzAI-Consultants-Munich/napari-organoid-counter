@@ -81,7 +81,6 @@ def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
     pad_x = (img_height//step)*step + window_size - img_height
     pad_y = (img_width//step)*step + window_size - img_width
     test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='edge')
-
     # normalise and convert to RGB - model input has size 3
     test_img = (test_img-np.min(test_img))/(np.max(test_img)-np.min(test_img)) 
     test_img = (255*test_img).astype(np.uint8)
@@ -92,7 +91,7 @@ def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
     test_img = torch.unsqueeze(test_img, axis=0) #[B, C, H, W]
     test_img = test_img.to(device)
     
-    return test_img
+    return test_img, img_height, img_width
 
 def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
     """ Function applies non max suppression to iteratively remove lower scoring boxes which have an IoU greater than iou_threshold 
