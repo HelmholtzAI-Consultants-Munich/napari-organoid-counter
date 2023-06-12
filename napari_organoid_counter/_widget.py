@@ -64,7 +64,7 @@ class OrganoidCounterWidget(QWidget):
                 min_diameter: int = 30,
                 confidence: float = 0.8):
         super().__init__()
-        
+
         # assign class variables
         self.viewer = napari_viewer 
         self.model_path = os.path.join(os.getcwd(), model_path)
@@ -101,7 +101,7 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
 
-        self.slider_changed = False
+        #self.slider_changed = False # used for changing slider and text of min diameter
 
     def _sel_layer_changed(self, event):
         cur_layer_list = list(self.viewer.layers.selection)
@@ -117,7 +117,8 @@ class OrganoidCounterWidget(QWidget):
             # update min diameter text and slider with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
             self.min_diameter_slider.setValue(self.min_diameter)
-            self.min_diameter_label.setText('Minimum Diameter [um]: ')
+            #self.min_diameter_label.setText('Minimum Diameter [um]: ')
+            self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
             # update confidence text and slider with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
             vis_confidence = int(self.confidence*100)
@@ -304,7 +305,14 @@ class OrganoidCounterWidget(QWidget):
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
             bboxes, scores, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
             self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes_name)
+    
+    def _on_diameter_changed(self):
+        """ Is called whenever user changes the Minimum Diameter slider """
+        self.min_diameter = self.min_diameter_slider.value()
+        self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
+        self._rerun()
 
+    '''
     def _on_diameter_slider_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
         self.min_diameter = self.min_diameter_slider.value()
@@ -320,7 +328,7 @@ class OrganoidCounterWidget(QWidget):
         if self.min_diameter_slider.value() != self.min_diameter:
             self.min_diameter_slider.setValue(self.min_diameter)
         self._rerun()
-
+    '''
 
     def _on_confidence_changed(self):
         """ Is called whenever user changes the confidence slider """
@@ -633,17 +641,21 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_slider.setMaximum(100)
         self.min_diameter_slider.setSingleStep(10)
         self.min_diameter_slider.setValue(self.min_diameter)
-        self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
+        #self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
+        self.min_diameter_slider.valueChanged.connect(self._on_diameter_changed)
         # set up the label
-        self.min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
+        #self.min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
+        self.min_diameter_label = QLabel('Minimum Diameter [um]: '+str(self.min_diameter), self)
         self.min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        '''
         # set up text box
         self.min_diameter_textbox = QLineEdit(self)
         self.min_diameter_textbox.setText(str(self.min_diameter))
         self.min_diameter_textbox.returnPressed.connect(self._on_diameter_textbox_changed)
+        '''
         # and add all these to the layout
         hbox.addWidget(self.min_diameter_label)
-        hbox.addWidget(self.min_diameter_textbox)
+        #hbox.addWidget(self.min_diameter_textbox)
         hbox.addSpacing(15)
         hbox.addWidget(self.min_diameter_slider)
         #self.min_diameter_box.setLayout(hbox)
