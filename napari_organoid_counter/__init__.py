@@ -4,4 +4,4 @@ except ImportError:
     __version__ = "unknown"
 
 from ._widget import OrganoidCounterWidget
-from ._reader import get_reader
+from ._reader import reader_function, get_reader
