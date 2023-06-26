@@ -208,16 +208,12 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever Run Organoid Counter button is clicked """
         # check if model has been loaded
         if self.organoiDL is None:
-            if os.path.isfile(self.model_path):
-                self.organoiDL = OrganoiDL(self.viewer.layers[self.image_layer_name].scale,
-                                           model_checkpoint=self.model_path
-                                           )
-            else:
+            if not os.path.isfile(self.model_path): 
                 #show_info('Make sure to select the correct model path!')
                 show_info('Model not found locally. Downloading default model instead!')
-                self.organoiDL = OrganoiDL(self.viewer.layers[self.image_layer_name].scale,
-                                           model_checkpoint=self.model_path
-                                           )
+            self.organoiDL = OrganoiDL(self.viewer.layers[self.image_layer_name].scale,
+                                       model_checkpoint=self.model_path
+                                       )
                 
         # and if an image has been loaded
         if not self.image_layer_name: 
