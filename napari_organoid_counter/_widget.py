@@ -79,7 +79,7 @@ class OrganoidCounterWidget(QWidget):
         self.save_layer_name = ''
         self.cur_shapes_name = ''
         self.cur_shapes_layer = None
-        self.organoiDL = None
+        self.organoiDL = OrganoiDL()
         self.num_organoids = 0
         self.original_images = {}
         self.original_contrast = {}
@@ -206,15 +206,14 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
-        # check if model has been loaded
-        if self.organoiDL is None:
+        # check if model has been loaded and scale set
+        if self.organoiDL.model is None:
             if not os.path.isfile(self.model_path): 
                 #show_info('Make sure to select the correct model path!')
                 show_info('Model not found locally. Downloading default model instead!')
-            self.organoiDL = OrganoiDL(self.viewer.layers[self.image_layer_name].scale,
-                                       model_checkpoint=self.model_path
-                                       )
-                
+            self.organoiDL.set_model(model_checkpoint=self.model_path)
+        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
+
         # and if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
@@ -257,6 +256,8 @@ class OrganoidCounterWidget(QWidget):
         if fd.exec_():
             self.model_path = fd.selectedFiles()[0]
         self.model_textbox.setText(self.model_path)
+        '''
+        ############# REMOVE??????????????
         # initialise organoiDL instance with the model path chosen
         try:
             if self.cur_shapes_layer is not None:
@@ -270,6 +271,7 @@ class OrganoidCounterWidget(QWidget):
                                        model_checkpoint=self.model_path, 
                                        )
         except: show_info('Could not load model - make sure you are loading the correct file (with .ckpt ending)')
+        '''
 
     def _on_window_sizes_changed(self):
         """ Is called whenever user changes the window sizes text box """
@@ -286,11 +288,9 @@ class OrganoidCounterWidget(QWidget):
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
         # check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids        
-        if self.organoiDL is None:
-            self.organoiDL = OrganoiDL(self.cur_shapes_layer.scale,
-                                       model_checkpoint=self.model_path)
-            self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
-
+        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.cur_shapes_layer.scale)
+        self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
+        
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
         with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
             # first update bboxes in organoiDLin case user has added/removed
@@ -427,6 +427,10 @@ class OrganoidCounterWidget(QWidget):
         # get the bounding box and update the displayed number of organoids
         self._update_num_organoids(len(self.cur_shapes_layer.data)) 
         # listen for a data change in the current shapes layer
+        self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
+                                            self.cur_shapes_layer.data,
+                                            self.cur_shapes_layer.properties['scores'],
+                                            self.cur_shapes_layer.properties['box_id'])
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
         
     def _update_remove_shapes(self, removed_layers):
@@ -439,7 +443,7 @@ class OrganoidCounterWidget(QWidget):
             self.output_layer_selection.removeItem(item_id)
             if removed_layer==self.cur_shapes_name: 
                 self._update_num_organoids(0)
-                self.organoiDL = None
+                self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
                 self.cur_shapes_name = '' # DO SOMETHING!
 
     def shapes_event_handler(self, event):

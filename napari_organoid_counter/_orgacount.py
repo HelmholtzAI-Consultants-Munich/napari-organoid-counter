@@ -5,33 +5,36 @@ from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, conver
 import subprocess
 
 class OrganoiDL():
-    def __init__(self, 
-                 img_scale,
-                 model_checkpoint=None):
+    def __init__(self):
         super().__init__()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
-        self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        self.model_checkpoint = model_checkpoint
-        if not os.path.isfile(self.model_checkpoint):
-            self.download_model()
-        self.load_model_checkpoint(self.model_checkpoint)
-        self.model = self.model.to(self.device)
         self.transfroms = ToTensor()
 
-        self.img_scale = img_scale
+        self.model = None
+        self.img_scale = [0,0]
         self.pred_bboxes = {}
         self.pred_scores = {}
         self.pred_ids = {}
         self.next_id = {}
 
+    def set_scale(self, img_scale):
+        self.img_scale = img_scale
+
+    def set_model(self, model_checkpoint):
+        self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
+        if not os.path.isfile(model_checkpoint):
+            model_checkpoint = self.download_model()
+        self.load_model_checkpoint(model_checkpoint)
+        self.model = self.model.to(self.device)
+
     def download_model(self):
         subprocess.run(["zenodo_get","10.5281/zenodo.7708763","-o", "model"])
-        self.model_checkpoint = os.path.join(os.getcwd(), 'model', 'model_v1.ckpt')
         #zenodo_get(['10.5281/zenodo.7708763'])
-
+        return os.path.join(os.getcwd(), 'model', 'model_v1.ckpt')
+        
     def load_model_checkpoint(self, model_path):
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
@@ -131,7 +134,10 @@ class OrganoiDL():
             self.pred_bboxes[shapes_name] = new_bboxes
             self.pred_scores[shapes_name] = new_scores
             self.pred_ids[shapes_name] = new_ids
+            self.next_id[shapes_name] = len(new_ids)+1
+
         elif len(new_ids)==0: return
+
         else:
             min_diameter_x = self.cur_min_diam / self.img_scale[0]
             min_diameter_y = self.cur_min_diam / self.img_scale[1]
@@ -167,3 +173,8 @@ class OrganoiDL():
             self.next_id[shapes_name] = c
         else: self.next_id[shapes_name] += 1
 
+    def remove_shape_from_dict(self, shapes_name):
+        del self.pred_bboxes[shapes_name]
+        del self.pred_scores[shapes_name]
+        del self.pred_ids[shapes_name]
+        del self.next_id[shapes_name]
