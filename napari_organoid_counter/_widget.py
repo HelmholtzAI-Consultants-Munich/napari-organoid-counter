@@ -444,7 +444,6 @@ class OrganoidCounterWidget(QWidget):
             if removed_layer==self.cur_shapes_name: 
                 self._update_num_organoids(0)
                 self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
-                self.cur_shapes_name = '' # DO SOMETHING!
 
     def shapes_event_handler(self, event):
         """

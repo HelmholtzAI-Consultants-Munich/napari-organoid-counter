@@ -5,6 +5,36 @@ from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, conver
 import subprocess
 
 class OrganoiDL():
+    '''
+    The back-end of the organoid counter widget
+    Attributes
+    ----------
+        device: torch.device
+            The current device, either 'cpu' or 'gpu:0'
+        cur_confidence: float
+            The confidence threshold of the model
+        cur_min_diam: float
+            The minimum diameter of the organoids
+        transfroms: torchvision.transforms.ToTensor
+            The transformation for converting numpy image to tensor so it can be given as an input to the model
+        model: frcnn
+            The Faster R-CNN model
+        img_scale: list of floats
+            A list holiding the image resolution in x and y
+        pred_bboxes: dict
+            Each key will be a set of predictions of the model, either past or current, and values will be the numpy arrays 
+            holding the predicted bounding boxes
+        pred_scores: dict
+            Each key will be a set of predictions of the model abd the values will hold the confidence of the model for each
+            predicted bounding box
+        pred_ids: dict
+            Each key will be a set of predictions of the model abd the values will hold the box id for each
+            predicted bounding box
+        next_id: dict
+            Each key will be a set of predictions of the model abd the values will hold the next id to be attributed to a 
+            newly added box
+
+    '''
     def __init__(self):
         super().__init__()
         
@@ -14,7 +44,7 @@ class OrganoiDL():
         self.transfroms = ToTensor()
 
         self.model = None
-        self.img_scale = [0,0]
+        self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
         self.pred_ids = {}
@@ -31,17 +61,16 @@ class OrganoiDL():
         self.model = self.model.to(self.device)
 
     def download_model(self):
-        subprocess.run(["zenodo_get","10.5281/zenodo.7708763","-o", "model"])
-        #zenodo_get(['10.5281/zenodo.7708763'])
+        ''' Downloads the model from zenodo and returns the path where it is stored '''
+        subprocess.run(["zenodo_get", "10.5281/zenodo.7708763", "-o", "model"])
         return os.path.join(os.getcwd(), 'model', 'model_v1.ckpt')
         
     def load_model_checkpoint(self, model_path):
+        ''' Loads the model checkpoint '''
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
 
     def sliding_window(self, test_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, pred_bboxes=[], scores_list=[]):
-    
-        #img_height, img_width = test_img.size(2), test_img.size(3)
 
         for i in range(0, prepadded_height, step):
             for j in range(0, prepadded_width, step):
