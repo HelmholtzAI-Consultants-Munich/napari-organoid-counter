@@ -233,6 +233,8 @@ class OrganoidCounterWidget(QWidget):
         if labels_layer_name in self.shape_layer_names:
             show_info('Found existing labels layer. Please remove or rename it and try again!')
             return 
+        # show activity docker for progrgess bar while running 
+        self.viewer.window._status_bar._toggle_activity_dock(True)
         # run inference
         self.organoiDL.run(img_data, 
                            labels_layer_name,
@@ -241,7 +243,9 @@ class OrganoidCounterWidget(QWidget):
                            window_overlap = 0.5)
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
-
+        # hide activcity dock on completion
+        self.viewer.window._status_bar._toggle_activity_dock(False)
+        # update widget with results
         self._update_vis_bboxes(bboxes, scores, box_ids, labels_layer_name)
         # and update cur_shapes_name to newly created shapes layer
         self.cur_shapes_name = labels_layer_name

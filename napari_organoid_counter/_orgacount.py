@@ -1,8 +1,10 @@
 import os
 import torch
 from torchvision.transforms import ToTensor
-from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams
+from napari.utils import progress
 import subprocess
+from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams
+
 
 class OrganoiDL():
     '''
@@ -71,9 +73,10 @@ class OrganoiDL():
         self.model.load_state_dict(ckpt) #.state_dict())
 
     def sliding_window(self, test_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, pred_bboxes=[], scores_list=[]):
-
-        for i in range(0, prepadded_height, step):
-            for j in range(0, prepadded_width, step):
+        #with progress(range(steps)) as pbr:
+        for i in progress(range(0, prepadded_height, step)):
+        #for i in range(0, prepadded_height, step):
+            for j in progress(range(0, prepadded_width, step)):
                 
                 # crop
                 img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
