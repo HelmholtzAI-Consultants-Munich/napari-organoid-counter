@@ -576,15 +576,21 @@ class OrganoidCounterWidget(QWidget):
         """
         #self.window_sizes_box = QGroupBox()
         hbox = QHBoxLayout()
+        info_text = ("Typically a ratio of 512 to 1 between window size and downsampling rate will give good results, (larger window \n"
+                    "sizes can lead to a drop in performance). Note that small window sizes will signicantly impact the runtime of the \n"
+                    "algorithm. For organoids of different sizes consider setting multiple windows sizes. Hit Enter for the change to \n"
+                    "take effect.")
         # setup label
         window_sizes_label = QLabel('Window sizes: [size1, size2, ...]', self)
         window_sizes_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        window_sizes_label.setToolTip(info_text)
         # setup textbox
         self.window_sizes_textbox = QLineEdit(self)
         text = [str(window_size) for window_size in self.window_sizes]
         text = ','.join(text)
         self.window_sizes_textbox.setText(text)
         self.window_sizes_textbox.returnPressed.connect(self._on_window_sizes_changed)
+        self.window_sizes_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(window_sizes_label)
         hbox.addWidget(self.window_sizes_textbox)   
@@ -599,15 +605,22 @@ class OrganoidCounterWidget(QWidget):
         """
         #self.downsampling_box = QGroupBox()
         hbox = QHBoxLayout()
+        info_text = ("To detect large organoids (and ignore smaller structures) you can increase the downsampling rate. \n"
+                    "If your organoids are small and are being missed by the algorithm, consider reducing the downsampling\n"
+                    "rate. The number of downsampling inputs should match the number of windows sizes. Hit Enter for the \n"
+                    "change to take effect. See window sizes for more info.")
+
         # setup label
         downsampling_label = QLabel('Downsampling: [ds1, ds2, ...]', self)
         downsampling_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        downsampling_label.setToolTip(info_text)
         # setup textbox
         self.downsampling_textbox = QLineEdit(self)
         text = [str(ds) for ds in self.downsampling]
         text = ','.join(text)
         self.downsampling_textbox.setText(text)
         self.downsampling_textbox.returnPressed.connect(self._on_downsampling_changed)
+        self.downsampling_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(downsampling_label)
         hbox.addWidget(self.downsampling_textbox) 
