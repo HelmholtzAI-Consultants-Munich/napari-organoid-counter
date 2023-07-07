@@ -206,41 +206,47 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
-        # check if model has been loaded and scale set
-        if self.organoiDL.model is None:
-            if not os.path.isfile(self.model_path): 
-                #show_info('Make sure to select the correct model path!')
-                show_info('Model not found locally. Downloading default model instead!')
-            self.organoiDL.set_model(model_checkpoint=self.model_path)
-        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
-
-        # and if an image has been loaded
+        
+        # check if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
             return
+        # check if model has been loaded and scale set
+        if not os.path.isfile(self.model_path): 
+            show_info('Model not found locally. Downloading default model instead!')
+
+        self.organoiDL.set_model(model_checkpoint=self.model_path)
+        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
+        
         # make sure the number of windows and downsamplings are the same
         if len(self.window_sizes) != len(self.downsampling): 
             show_info('Keep number of window sizes and downsampling the same and try again!')
             return
+        
         # get the current image 
         img_data = self.viewer.layers[self.image_layer_name].data
+        
         # check that image is grayscale
         if len(squeeze_img(img_data).shape) > 2:
             show_info('Only grayscale images currently supported. Try a different image or process it first and try again!')
             return 
+        
         # update the viewer with the new bboxes
         labels_layer_name = 'Labels-'+self.image_layer_name
         if labels_layer_name in self.shape_layer_names:
             show_info('Found existing labels layer. Please remove or rename it and try again!')
             return 
+        
         # show activity docker for progrgess bar while running 
         self.viewer.window._status_bar._toggle_activity_dock(True)
+       
         # run inference
         self.organoiDL.run(img_data, 
                            labels_layer_name,
                            self.window_sizes,
                            self.downsampling,
                            window_overlap = 0.5)
+        
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
         # hide activcity dock on completion
