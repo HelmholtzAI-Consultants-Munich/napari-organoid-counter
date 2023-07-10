@@ -8,13 +8,40 @@ from napari import layers
 from napari.utils.notifications import show_info
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QSlider, QLabel, QFileDialog, QLineEdit, QGroupBox)
+from PyQt5.QtWidgets import (QComboBox, QPushButton, QVBoxLayout, QHBoxLayout, QWidget, QSlider, QLabel, QFileDialog, QLineEdit, QGroupBox, QDialog, QGridLayout)
 
 from napari_organoid_counter._orgacount import OrganoiDL
-from napari_organoid_counter._utils import apply_normalization, write_to_csv, get_bbox_diameters, write_to_json, get_bboxes_as_dict, squeeze_img, set_dict_key
+from napari_organoid_counter._utils import check_for_local_models, add_to_dict, return_is_file, apply_normalization, write_to_csv, get_bbox_diameters, write_to_json, get_bboxes_as_dict, squeeze_img, set_dict_key
+from napari_organoid_counter import settings
 
 import warnings
 warnings.filterwarnings("ignore")
+
+class MyInputDialog(QDialog):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setWindowTitle("Confirm Download")
+        self.ok_btn = QPushButton("OK")
+        self.cancel_btn = QPushButton("Cancel")
+        text = ["Model not found locally. Downloading default model to "+settings.MODELS_DIR+"\n"
+                "This will only happen once. Click ok to continue or cancel if you do not agree. "]
+
+        layout = QGridLayout()
+        layout.addWidget(QLabel(text), 0, 0)
+        layout.addWidget(self.ok_btn, 1, 0)
+        layout.addWidget(self.cancel_btn, 1, 1)
+        self.setLayout(layout)
+
+        self.ok_btn.clicked.connect(self.accept)
+        self.cancel_btn.clicked.connect(self.reject)
+    
+    def accept(self) -> None:
+        self.close()
+        return 
+    def reject(self) -> None:
+        self.close()
+        return 
+
 
 class OrganoidCounterWidget(QWidget):
     '''
@@ -23,8 +50,6 @@ class OrganoidCounterWidget(QWidget):
     ----------
         napari_viewer: string
             The current napari viewer
-        model_path: string, default 'model-weights/model_v1.ckpt'
-            The relative path to the detection model used for organoid counting - will append current working dir to this path
         window_sizes: list of ints, default [1024]
             A list with the sizes of the windows on which the model will be run. If more than one window_size is given then the model will run on several window sizes and then 
             combne the results
@@ -36,6 +61,8 @@ class OrganoidCounterWidget(QWidget):
             The model confidence threhsold - equivalent to box_score_thresh of faster_rcnn
     Attributes
     ----------
+        model_name: str
+            The name of the default model
         image_layer_names: list of strings
             Will hold the names of all the currently open images in the viewer
         image_layer_name: string
@@ -58,7 +85,6 @@ class OrganoidCounterWidget(QWidget):
     '''
     def __init__(self, 
                 napari_viewer,
-                model_path: str = 'model/model_v1.ckpt',
                 window_sizes: List = [1024],
                 downsampling: List = [2],
                 min_diameter: int = 30,
@@ -67,7 +93,9 @@ class OrganoidCounterWidget(QWidget):
 
         # assign class variables
         self.viewer = napari_viewer 
-        self.model_path = os.path.join(os.getcwd(), model_path)
+        settings.init()
+        check_for_local_models()
+        self.model_name = list(settings.MODELS.keys())[0]
         self.window_sizes = window_sizes
         self.downsampling = downsampling
         self.min_diameter = min_diameter
@@ -209,10 +237,11 @@ class OrganoidCounterWidget(QWidget):
             show_info('Please load an image first and try again!')
             return
         # check if model has been loaded and scale set
-        if not os.path.isfile(self.model_path): 
-            show_info('Model not found locally. Downloading default model instead!')
+        if not return_is_file(settings.MODELS_DIR, settings.MODELS[self.model_name]["filename"]): 
+            ww = MyInputDialog(self)
+            ww.exec_()
 
-        self.organoiDL.set_model(model_checkpoint=self.model_path)
+        self.organoiDL.set_model(model_name=self.model_name)
         if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
         
         # make sure the number of windows and downsamplings are the same
@@ -255,30 +284,21 @@ class OrganoidCounterWidget(QWidget):
         # preprocess the image if not done so already to improve visualisation
         self._preprocess() 
 
+    def _on_model_selection_changed(self):
+        self.model_name = self.model_selection.currentText()
+
     def _on_choose_model_clicked(self):
         """ Is called whenever browse button is clicked for model selection """
         # called when the user hits the 'browse' button to select a model
         fd = QFileDialog()
         fd.setFileMode(QFileDialog.AnyFile)
         if fd.exec_():
-            self.model_path = fd.selectedFiles()[0]
-        self.model_textbox.setText(self.model_path)
-        '''
-        ############# REMOVE??????????????
-        # initialise organoiDL instance with the model path chosen
-        try:
-            if self.cur_shapes_layer is not None:
-                scale = self.cur_shapes_layer.scale
-            elif self.viewer.layers[self.image_layer_name] is not None:
-                scale = self.viewer.layers[self.image_layer_name].scale
-            else:
-                show_info('Could not find a loaded image or annotation file - please load and then select the model')
-                return
-            self.organoiDL = OrganoiDL(scale,
-                                       model_checkpoint=self.model_path, 
-                                       )
-        except: show_info('Could not load model - make sure you are loading the correct file (with .ckpt ending)')
-        '''
+            model_path = fd.selectedFiles()[0]
+        import shutil
+        shutil.copy2(model_path, settings.MODELS_DIR)
+        model_name = add_to_dict(model_path)
+        self.model_selection.addItem(model_name)
+
 
     def _on_window_sizes_changed(self):
         """ Is called whenever user changes the window sizes text box """
@@ -558,10 +578,9 @@ class OrganoidCounterWidget(QWidget):
         preprocess_btn = QPushButton("Preprocess")
         preprocess_btn.clicked.connect(self._on_preprocess_click)
         # and add all these to the layout
-        hbox.addWidget(image_label)
-        hbox.addSpacing(5)
-        hbox.addWidget(self.image_layer_selection)
-        hbox.addWidget(preprocess_btn)
+        hbox.addWidget(image_label, 2)
+        hbox.addWidget(self.image_layer_selection, 4)
+        hbox.addWidget(preprocess_btn, 4)
         #self.input_box.setLayout(hbox)
         #self.input_box.setStyleSheet("border: 0px")
         return hbox
@@ -570,24 +589,25 @@ class OrganoidCounterWidget(QWidget):
         """
         Sets up the GUI part where the model path is set
         """
-        #self.model_box = QGroupBox()
         hbox = QHBoxLayout()
         # setup the label
         model_label = QLabel('Model: ', self)
         model_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # setup the model text box
-        self.model_textbox = QLineEdit(self)
-        self.model_textbox.setText(self.model_path)
+
         # set up the browse files button
-        fileOpenButton = QPushButton('Choose',self)
+        fileOpenButton = QPushButton('Add custom model', self)
         fileOpenButton.show()
         fileOpenButton.clicked.connect(self._on_choose_model_clicked)
+        
+        # setup drop down option for selecting which image to process
+        self.model_selection = QComboBox()
+        for name in settings.MODELS.keys(): self.model_selection.addItem(name)
+        self.model_selection.currentIndexChanged.connect(self._on_model_selection_changed)
+        
         # and add all these to the layout
-        hbox.addWidget(model_label)
-        hbox.addWidget(self.model_textbox)
-        hbox.addWidget(fileOpenButton)
-        #self.model_box.setLayout(hbox)
-        #self.model_box.setStyleSheet("border: 0px")
+        hbox.addWidget(model_label, 2)
+        hbox.addWidget(self.model_selection, 4)
+        hbox.addWidget(fileOpenButton, 4)
         return hbox
 
     def _setup_window_sizes_box(self):

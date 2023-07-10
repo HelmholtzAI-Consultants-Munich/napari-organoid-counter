@@ -3,7 +3,9 @@ import torch
 from torchvision.transforms import ToTensor
 from napari.utils import progress
 import subprocess
-from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams
+
+from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams, return_is_file
+from napari_organoid_counter import settings
 
 
 class OrganoiDL():
@@ -45,6 +47,9 @@ class OrganoiDL():
         self.cur_min_diam = 30
         self.transfroms = ToTensor()
 
+        # create cache dir for models if it doesn't exist
+        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
         self.model = None
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
@@ -55,27 +60,27 @@ class OrganoiDL():
     def set_scale(self, img_scale):
         self.img_scale = img_scale
 
-    def set_model(self, model_checkpoint):
+    def set_model(self, model_name):
+        # initialise model instance
         self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        if not os.path.isfile(model_checkpoint):
-            model_checkpoint = self.download_model()
-        self.load_model_checkpoint(model_checkpoint)
+        # download model if not there already
+        if not return_is_file(settings.MODELS_DIR, settings.MODELS[model_name]["filename"]): self.download_model()
+        self.load_model_checkpoint(model_name)
         self.model = self.model.to(self.device)
 
-    def download_model(self):
+    def download_model(self, model='default'):
         ''' Downloads the model from zenodo and returns the path where it is stored '''
-        subprocess.run(["zenodo_get", "10.5281/zenodo.7708763", "-o", "model"])
-        return os.path.join(os.getcwd(), 'model', 'model_v1.ckpt')
+        subprocess.run(["zenodo_get", settings.MODELS[model]["source"], "-o", settings.MODELS_DIR])
         
-    def load_model_checkpoint(self, model_path):
+    def load_model_checkpoint(self, model_name):
         ''' Loads the model checkpoint '''
-        ckpt = torch.load(model_path, map_location=self.device)
+        model_checkpoint = os.path.join(settings.MODELS_DIR, settings.MODELS[model_name]["filename"])
+        ckpt = torch.load(model_checkpoint, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
 
     def sliding_window(self, test_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, pred_bboxes=[], scores_list=[]):
-        #with progress(range(steps)) as pbr:
+        
         for i in progress(range(0, prepadded_height, step)):
-        #for i in range(0, prepadded_height, step):
             for j in progress(range(0, prepadded_width, step)):
                 
                 # crop
