@@ -73,9 +73,9 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter = min_diameter
         self.confidence = confidence
 
-        self.image_layer_names = None
+        self.image_layer_names = []
         self.image_layer_name = None 
-        self.shape_layer_names = None
+        self.shape_layer_names = []
         self.save_layer_name = ''
         self.cur_shapes_name = ''
         self.cur_shapes_layer = None
@@ -101,7 +101,8 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
 
-        #self.slider_changed = False # used for changing slider and text of min diameter
+        self.diameter_slider_changed = False # used for changing slider and text of min diameter
+        self.confidence_slider_changed = False # used for changing slider and text of confidence threshold
 
     def _sel_layer_changed(self, event):
         cur_layer_list = list(self.viewer.layers.selection)
@@ -116,14 +117,10 @@ class OrganoidCounterWidget(QWidget):
             self.cur_shapes_name = cur_seg_selected.name
             # update min diameter text and slider with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
-            self.min_diameter_slider.setValue(self.min_diameter)
-            #self.min_diameter_label.setText('Minimum Diameter [um]: ')
-            self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
+            self.min_diameter_textbox.setText(str(self.min_diameter))
             # update confidence text and slider with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
-            vis_confidence = int(self.confidence*100)
-            self.confidence_slider.setValue(vis_confidence)
-            self.confidence_label.setText('Model confidence: '+str(self.confidence))
+            self.confidence_textbox.setText(str(self.confidence))
 
     def _added_layer(self, event):
         # get names of added layers, image and shapes
@@ -311,37 +308,50 @@ class OrganoidCounterWidget(QWidget):
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
             bboxes, scores, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
             self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes_name)
-    
-    def _on_diameter_changed(self):
-        """ Is called whenever user changes the Minimum Diameter slider """
-        self.min_diameter = self.min_diameter_slider.value()
-        self.min_diameter_label.setText('Minimum Diameter [um]: '+str(self.min_diameter))
-        self._rerun()
 
-    '''
     def _on_diameter_slider_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
+        # get current value
         self.min_diameter = self.min_diameter_slider.value()
-        self.slider_changed = True
+        self.diameter_slider_changed = True
         if int(self.min_diameter_textbox.text())!= self.min_diameter:
             self.min_diameter_textbox.setText(str(self.min_diameter))
-        self._rerun()
-        self.slider_changed = False
+        self.diameter_slider_changed = False
+        # check if no labels loaded yet
+        if len(self.shape_layer_names)==0: return
+        self._rerun() 
     
     def _on_diameter_textbox_changed(self):
-        if self.slider_changed: return
+        """ Is called whenever user changes the minimum diameter from the textbox """
+        # check if no labels loaded yet
+        if self.diameter_slider_changed: return
         self.min_diameter = int(self.min_diameter_textbox.text())
         if self.min_diameter_slider.value() != self.min_diameter:
             self.min_diameter_slider.setValue(self.min_diameter)
+        if len(self.shape_layer_names)==0: return
         self._rerun()
-    '''
 
-    def _on_confidence_changed(self):
+    def _on_confidence_slider_changed(self):
         """ Is called whenever user changes the confidence slider """
         self.confidence = self.confidence_slider.value()/100
-        self.confidence_label.setText('Model confidence: '+str(self.confidence))
+        self.confidence_slider_changed = True
+        if float(self.confidence_textbox.text()) != self.confidence:
+            self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider_changed = False
+        # check if no labels loaded yet
+        if len(self.shape_layer_names)==0: return
         self._rerun()
-        
+
+    def _on_confidence_textbox_changed(self):
+        """ Is called whenever user changes the confidence value from the textbox """
+        if self.confidence_slider_changed: return
+        self.confidence = float(self.confidence_textbox.text())
+        slider_conf_value = int(self.confidence*100)
+        if self.confidence_slider.value() != slider_conf_value:
+            self.confidence_slider.setValue(slider_conf_value)
+        if len(self.shape_layer_names)==0: return
+        self._rerun()
+
     def _on_image_selection_changed(self):
         """ Is called whenever a new image has been selected from the drop down box """
         self.image_layer_name = self.image_layer_selection.currentText()
@@ -655,7 +665,6 @@ class OrganoidCounterWidget(QWidget):
         """
         Sets up the GUI part where the minimum diameter parameter is displayed
         """
-        #self.min_diameter_box = QGroupBox()
         hbox = QHBoxLayout()
         # set up the min diameter slider
         self.min_diameter_slider = QSlider(Qt.Horizontal)
@@ -663,32 +672,24 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_slider.setMaximum(100)
         self.min_diameter_slider.setSingleStep(10)
         self.min_diameter_slider.setValue(self.min_diameter)
-        #self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
-        self.min_diameter_slider.valueChanged.connect(self._on_diameter_changed)
+        self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
         # set up the label
-        #self.min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
-        self.min_diameter_label = QLabel('Minimum Diameter [um]: '+str(self.min_diameter), self)
-        self.min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        '''
+        min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
+        min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         # set up text box
         self.min_diameter_textbox = QLineEdit(self)
         self.min_diameter_textbox.setText(str(self.min_diameter))
-        self.min_diameter_textbox.returnPressed.connect(self._on_diameter_textbox_changed)
-        '''
+        self.min_diameter_textbox.returnPressed.connect(self._on_diameter_textbox_changed)  
         # and add all these to the layout
-        hbox.addWidget(self.min_diameter_label)
-        #hbox.addWidget(self.min_diameter_textbox)
-        hbox.addSpacing(15)
-        hbox.addWidget(self.min_diameter_slider)
-        #self.min_diameter_box.setLayout(hbox)
-        #self.min_diameter_box.setStyleSheet("border: 0px") 
+        hbox.addWidget(min_diameter_label, 4)
+        hbox.addWidget(self.min_diameter_textbox, 1)
+        hbox.addWidget(self.min_diameter_slider, 5)
         return hbox
 
     def _setup_confidence_box(self):
         """
         Sets up the GUI part where the confidence parameter is displayed
         """
-        #self.confidence_box = QGroupBox()
         hbox = QHBoxLayout()
         # set up confidence slider
         self.confidence_slider = QSlider(Qt.Horizontal)
@@ -697,16 +698,18 @@ class OrganoidCounterWidget(QWidget):
         self.confidence_slider.setSingleStep(5)
         vis_confidence = int(self.confidence*100)
         self.confidence_slider.setValue(vis_confidence)
-        self.confidence_slider.valueChanged.connect(self._on_confidence_changed)
+        self.confidence_slider.valueChanged.connect(self._on_confidence_slider_changed)
         # set up label
-        self.confidence_label = QLabel('Model confidence: '+str(self.confidence), self)
-        self.confidence_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        confidence_label = QLabel('Model confidence: ', self)
+        confidence_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+        # set up text box
+        self.confidence_textbox = QLineEdit(self)
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_textbox.returnPressed.connect(self._on_confidence_textbox_changed)  
         # and add all these to the layout
-        hbox.addWidget(self.confidence_label)
-        hbox.addSpacing(15)
-        hbox.addWidget(self.confidence_slider)
-        #self.confidence_box.setLayout(hbox)
-        #self.confidence_box.setStyleSheet("border: 0px") 
+        hbox.addWidget(confidence_label, 3)
+        hbox.addWidget(self.confidence_textbox, 1)
+        hbox.addWidget(self.confidence_slider, 6)
         return hbox
 
     '''
