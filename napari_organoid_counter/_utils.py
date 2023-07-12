@@ -1,4 +1,7 @@
 from contextlib import contextmanager
+import os
+from pathlib import Path
+
 import numpy as np
 import math
 import json
@@ -11,6 +14,32 @@ import torch.nn as nn
 from torchvision.models import detection
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops import nms
+
+from napari_organoid_counter import settings
+
+
+def check_for_local_models_and_add():
+    """ Checks the models directory for any local models previously added by the user.
+    If some are found then these are added to the model dictionary (see settings). """
+    if not os.path.exists(settings.MODELS_DIR): return
+    model_names_in_dir = [file for file in os.listdir(settings.MODELS_DIR)]
+    model_names_in_dict = [settings.MODELS[key]["filename"] for key in settings.MODELS.keys()]
+    for model_name in model_names_in_dir:
+        if model_name not in model_names_in_dict and model_name.endswith(settings.MODEL_TYPE):
+            _ = add_to_dict(model_name)
+
+def add_to_dict(filepath):
+    """ Given the full path and name of a model in filepath the model is added to the models dict (see settings)"""
+    filepath = Path(filepath)
+    name = filepath.name
+    stem_name = filepath.stem
+    settings.MODELS[stem_name] = {"filename": name, "source": "local"}
+    return stem_name
+
+def return_is_file(path, filename):
+    """ Return True if the file exists in path and False otherwise """
+    full_path = os.path.join(path, filename)
+    return os.path.isfile(full_path)
 
 @contextmanager
 def set_dict_key(dictionary, key, value):
