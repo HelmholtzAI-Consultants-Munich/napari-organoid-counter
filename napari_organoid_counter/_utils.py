@@ -18,7 +18,9 @@ from torchvision.ops import nms
 from napari_organoid_counter import settings
 
 
-def check_for_local_models():
+def check_for_local_models_and_add():
+    """ Checks the models directory for any local models previously added by the user.
+    If some are found then these are added to the model dictionary (see settings). """
     if not os.path.exists(settings.MODELS_DIR): return
     model_names_in_dir = [file for file in os.listdir(settings.MODELS_DIR)]
     model_names_in_dict = [settings.MODELS[key]["filename"] for key in settings.MODELS.keys()]
@@ -27,6 +29,7 @@ def check_for_local_models():
             _ = add_to_dict(model_name)
 
 def add_to_dict(filepath):
+    """ Given the full path and name of a model in filepath the model is added to the models dict (see settings)"""
     filepath = Path(filepath)
     name = filepath.name
     stem_name = filepath.stem

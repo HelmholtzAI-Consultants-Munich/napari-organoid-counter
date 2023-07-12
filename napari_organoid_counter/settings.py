@@ -4,7 +4,7 @@ def init():
     
     global MODELS
     MODELS = {
-        "default": {"filename": "model_v1.ckpt", "source": "10.5281/zenodo.7708763"}
+        "default": {"filename": "model_v1.ckpt", "source": "https://zenodo.org/record/7708763/files/model_v1.ckpt"}
     }
     
     global MODELS_DIR

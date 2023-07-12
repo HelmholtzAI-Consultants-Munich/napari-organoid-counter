@@ -2,7 +2,7 @@ import os
 import torch
 from torchvision.transforms import ToTensor
 from napari.utils import progress
-import subprocess
+from urllib.request import urlretrieve
 
 from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams, return_is_file
 from napari_organoid_counter import settings
@@ -37,18 +37,15 @@ class OrganoiDL():
         next_id: dict
             Each key will be a set of predictions of the model abd the values will hold the next id to be attributed to a 
             newly added box
-
     '''
-    def __init__(self):
+    def __init__(self, handle_progress):
         super().__init__()
         
+        self.handle_progress = handle_progress
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
         self.transfroms = ToTensor()
-
-        # create cache dir for models if it doesn't exist
-        settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
         self.model = None
         self.img_scale = [0., 0.]
@@ -58,31 +55,70 @@ class OrganoiDL():
         self.next_id = {}
 
     def set_scale(self, img_scale):
+        ''' Set the image scale: used to calculate real box sizes. '''
         self.img_scale = img_scale
 
     def set_model(self, model_name):
-        # initialise model instance
+        ''' Initialise  model instance and load model checkpoint and send to device. '''
         self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        # download model if not there already
-        if not return_is_file(settings.MODELS_DIR, settings.MODELS[model_name]["filename"]): self.download_model()
         self.load_model_checkpoint(model_name)
         self.model = self.model.to(self.device)
 
     def download_model(self, model='default'):
-        ''' Downloads the model from zenodo and returns the path where it is stored '''
-        subprocess.run(["zenodo_get", settings.MODELS[model]["source"], "-o", settings.MODELS_DIR])
-        
+        ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
+        # specify the url of the file which is to be downloaded
+        down_url = settings.MODELS[model]["source"]
+        # specify save location where the file is to be saved
+        save_loc = os.path.join(str(settings.MODELS_DIR), settings.MODELS[model]["filename"])
+        # Downloading using urllib
+        urlretrieve(down_url,save_loc, self.handle_progress)
+
     def load_model_checkpoint(self, model_name):
-        ''' Loads the model checkpoint '''
+        ''' Loads the model checkpoint for the model specified in model_name '''
         model_checkpoint = os.path.join(settings.MODELS_DIR, settings.MODELS[model_name]["filename"])
         ckpt = torch.load(model_checkpoint, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
 
-    def sliding_window(self, test_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, pred_bboxes=[], scores_list=[]):
-        
+    def sliding_window(self,
+                       test_img,
+                       step,
+                       window_size,
+                       rescale_factor,
+                       prepadded_height,
+                       prepadded_width,
+                       pred_bboxes=[],
+                       scores_list=[]):
+        ''' Runs sliding window inference and returns predicting bounding boxes and confidence scores for each box.
+        Inputs
+        ----------
+        test_img: Tensor of size [B, C, H, W]
+            The image ready to be given to model as input
+        step: int
+            The step of the sliding window, same in x and y
+        window_size: int
+            The sliding window size, same in x and y
+        rescale_factor: float
+            The rescaling factor by which the image has already been resized. Is 1/downsampling
+        prepadded_height: int
+            The image height before padding was applied
+        prepadded_width: int
+            The image width before padding was applied
+        pred_bboxes: list of
+            The
+        scores_list: list of
+            The
+        Outputs
+        ----------
+        pred_bboxes: list of Tensors, default is an empty list
+            The  resulting predicted boxes are appended here - if model is run at different window
+            sizes and downsampling this list will store results of all runs of the sliding window
+            so will not be empty the second, third etc. time.
+        scores_list: list of Tensor, default is an empty list
+            The  resulting confidence scores of the model for the predicted boxes are appended here 
+            Same as pred_bboxes, can be empty on first run but stores results of all runs.
+        '''
         for i in progress(range(0, prepadded_height, step)):
             for j in progress(range(0, prepadded_width, step)):
-                
                 # crop
                 img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
                 # get predictions
@@ -106,11 +142,24 @@ class OrganoiDL():
             window_sizes,
             downsampling_sizes,   
             window_overlap):
-        
-        # run for all window sizes
+        ''' Runs inference for an image at multiple window sizes and downsampling rates using sliding window ineference.
+        The results are filtered using the NMS algorithm and are then stored to dicts.
+        Inputs
+        ----------
+        img: Numpy array of size [H, W]
+            The image ready to be given to model as input
+        shapes_name: str
+            The name of the new predictions
+        window_size: list of ints
+            The sliding window size, same in x and y, if multiple sliding window will run mulitple times
+        downsampling_sizes: list of ints
+            The downsampling factor of the image, list size must match window_size
+        window_overlap: float
+            The window overlap for the sliding window inference.
+        ''' 
         bboxes = []
         scores = []
-        
+        # run for all window sizes
         for window_size, downsampling in zip(window_sizes, downsampling_sizes):
             # compute the step for the sliding window, based on window overlap
             rescale_factor = 1 / downsampling
@@ -118,9 +167,22 @@ class OrganoiDL():
             window_size = round(window_size * rescale_factor)
             step = round(window_size * window_overlap)
             # prepare image for model - norm, tensor, etc.
-            ready_img, prepadded_height, prepadded_width  = prepare_img(img, step, window_size, rescale_factor, self.transfroms , self.device)
-            bboxes, scores = self.sliding_window(ready_img, step, window_size, rescale_factor, prepadded_height, prepadded_width, bboxes, scores)
-
+            ready_img, prepadded_height, prepadded_width  = prepare_img(img,
+                                                                        step,
+                                                                        window_size,
+                                                                        rescale_factor,
+                                                                        self.transfroms,
+                                                                        self.device)
+            # and run sliding window over whole image
+            bboxes, scores = self.sliding_window(ready_img,
+                                                 step,
+                                                 window_size,
+                                                 rescale_factor,
+                                                 prepadded_height,
+                                                 prepadded_width,
+                                                 bboxes,
+                                                 scores)
+        # stack results
         bboxes = torch.stack(bboxes)
         scores = torch.stack(scores)
         # apply NMS to remove overlaping boxes
@@ -132,6 +194,8 @@ class OrganoiDL():
         self.next_id[shapes_name] = num_predictions+1
 
     def apply_params(self, shapes_name, confidence, min_diameter_um):
+        """ After resutls have been stored in dict this function will filter the dicts based on the confidence
+        and min_diameter_um thresholds for the given results defined by shape_name and return the filtered dicts. """
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um
         pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh(shapes_name)
@@ -141,6 +205,7 @@ class OrganoiDL():
         return pred_bboxes, pred_scores, pred_ids
 
     def _apply_confidence_thresh(self, shapes_name):
+        """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
         keep = (self.pred_scores[shapes_name]>self.cur_confidence).nonzero(as_tuple=True)[0]
         result_bboxes = self.pred_bboxes[shapes_name][keep]
@@ -149,6 +214,7 @@ class OrganoiDL():
         return result_bboxes, result_scores, result_ids
     
     def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_ids):
+        """ Filters out small result boxes of shapes_name based on the current min diameter size. """
         if pred_bboxes is None: return None
         if len(pred_bboxes)==0: return None
         min_diameter_x = self.cur_min_diam / self.img_scale[0]
@@ -163,6 +229,11 @@ class OrganoiDL():
         return pred_bboxes, pred_scores, pred_ids
 
     def update_bboxes_scores(self, shapes_name, new_bboxes, new_scores, new_ids):
+        ''' Updated the results dicts, self.pred_bboxes, self.pred_scores and self.pred_ids with new results.
+        If the shapes name doesn't exist as a key in the dicts the results are added with the new key. If the
+        key exists then new_bboxes, new_scores and new_ids are compared to the class result dicts and the dicts 
+        are updated, either by adding some box (user added box) or removing some box (user deleted a prediction).'''
+        
         new_bboxes = convert_boxes_from_napari_view(new_bboxes)
         new_scores =  torch.Tensor(list(new_scores))
         new_ids = list(new_ids)
@@ -206,11 +277,13 @@ class OrganoiDL():
                     self.pred_ids[shapes_name] = new_pred_ids
 
     def update_next_id(self, shapes_name, c=0):
+        """ Updates the next id to append to result dicts. If input c is given then that will be the next id. """
         if c!=0:
             self.next_id[shapes_name] = c
         else: self.next_id[shapes_name] += 1
 
     def remove_shape_from_dict(self, shapes_name):
+        """ Removes results of shapes_name from all result dicts. """
         del self.pred_bboxes[shapes_name]
         del self.pred_scores[shapes_name]
         del self.pred_ids[shapes_name]
