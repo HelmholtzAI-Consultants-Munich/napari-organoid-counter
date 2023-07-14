@@ -61,6 +61,7 @@ class OrganoidCounterWidget(QWidget):
                 napari_viewer,
                 window_sizes: List = [1024],
                 downsampling: List = [2],
+                window_overlap: float = 0.5,
                 min_diameter: int = 30,
                 confidence: float = 0.8):
         super().__init__()
@@ -78,6 +79,7 @@ class OrganoidCounterWidget(QWidget):
         # init params 
         self.window_sizes = window_sizes
         self.downsampling = downsampling
+        self.window_overlap = window_overlap
         self.min_diameter = min_diameter
         self.confidence = confidence
 
@@ -270,7 +272,7 @@ class OrganoidCounterWidget(QWidget):
                            labels_layer_name,
                            self.window_sizes,
                            self.downsampling,
-                           window_overlap = 0.5)
+                           self.window_overlap)
         
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
