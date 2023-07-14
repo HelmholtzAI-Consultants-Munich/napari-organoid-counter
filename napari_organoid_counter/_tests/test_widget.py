@@ -20,7 +20,10 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     viewer.add_image(test_img, name='Test')
 
     # create our widget, passing in the viewer
-    my_widget = OrganoidCounterWidget(viewer)
+    my_widget = OrganoidCounterWidget(viewer, 
+                                      window_sizes=[500],
+                                      downsampling=[2],
+                                      window_overlap=1)
 
     # call preprocessing - remove duplicate here?
     my_widget._preprocess()
