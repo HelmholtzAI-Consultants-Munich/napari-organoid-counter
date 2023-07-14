@@ -28,9 +28,12 @@ You can install `napari-organoid-counter` via [pip](https://pypi.org/project/nap
 To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
- 
+
+For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
 ## Quickstart
+
+After installation, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
 
 The use of the napari-organoid-counter plugin is straightforward. Here is a step-to-step guide of the standard workflow:
 1. You can load the image or images you wish to process into the napari viewer with a simple drag and drop
