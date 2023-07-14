@@ -32,6 +32,8 @@ To install latest development version :
 
 ## Quickstart
 
+After installation, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
+
 The use of the napari-organoid-counter plugin is straightforward. Here is a step-to-step guide of the standard workflow:
 1. You can load the image or images you wish to process into the napari viewer with a simple drag and drop
 2. You can then select the layer you wish to work on by the drop-down box at the top of the input configurations
