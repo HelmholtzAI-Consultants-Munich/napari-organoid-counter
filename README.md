@@ -41,7 +41,7 @@ Then run napari on your terminal.
 Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
 
 ## How to use?
-After installing, you can start napri (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
+After installing, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
 
 For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#quickstart).
 
