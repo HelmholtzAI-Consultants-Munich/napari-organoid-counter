@@ -34,8 +34,7 @@ For the dev branch you can clone this repo and install with:
 
     pip install -e .  
 
-Then run napari on your terminal.
-
+For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
 ## What's new in v2?
 Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
