@@ -197,7 +197,8 @@ class OrganoidCounterWidget(QWidget):
         else:
             # if no organoids were found just make an empty shapes layer
             if self.num_organoids==0: 
-                self.cur_shapes_layer = self.viewer.add_shapes(name=labels_layer_name)
+                self.cur_shapes_layer = self.viewer.add_shapes(name=labels_layer_name,
+                                                               properties={'box_id': [],'scores': []})
             # otherwise make the layer and add the boxes
             else:
                 properties = {'box_id': box_ids,'scores': scores}
@@ -205,14 +206,14 @@ class OrganoidCounterWidget(QWidget):
                                'size': 12,
                                'anchor': 'upper_left',}
                 self.cur_shapes_layer = self.viewer.add_shapes(bboxes, 
-                                        name=labels_layer_name,
-                                        scale=self.viewer.layers[self.image_layer_name].scale,
-                                        face_color='transparent',  
-                                        properties = properties,
-                                        text = text_params,
-                                        edge_color='magenta',
-                                        shape_type='rectangle',
-                                        edge_width=12) # warning generated here
+                                                               name=labels_layer_name,
+                                                               scale=self.viewer.layers[self.image_layer_name].scale,
+                                                               face_color='transparent',  
+                                                               properties = properties,
+                                                               text = text_params,
+                                                               edge_color='magenta',
+                                                               shape_type='rectangle',
+                                                               edge_width=12) # warning generated here
                             
             # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
             self.viewer.layers[labels_layer_name].current_edge_width = 12
