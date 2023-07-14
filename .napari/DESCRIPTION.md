@@ -28,7 +28,8 @@ You can install `napari-organoid-counter` via [pip](https://pypi.org/project/nap
 To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
- 
+
+For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
 ## Quickstart
 
