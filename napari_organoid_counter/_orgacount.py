@@ -1,10 +1,10 @@
-import os
 import torch
 from torchvision.transforms import ToTensor
-from napari.utils import progress
-from urllib.request import urlretrieve
 
-from napari_organoid_counter._utils import frcnn, prepare_img, apply_nms, convert_boxes_to_napari_view, convert_boxes_from_napari_view, get_diams, return_is_file
+from urllib.request import urlretrieve
+from napari.utils import progress
+
+from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
 
@@ -24,18 +24,18 @@ class OrganoiDL():
         model: frcnn
             The Faster R-CNN model
         img_scale: list of floats
-            A list holiding the image resolution in x and y
+            A list holding the image resolution in x and y
         pred_bboxes: dict
             Each key will be a set of predictions of the model, either past or current, and values will be the numpy arrays 
             holding the predicted bounding boxes
         pred_scores: dict
-            Each key will be a set of predictions of the model abd the values will hold the confidence of the model for each
+            Each key will be a set of predictions of the model and the values will hold the confidence of the model for each
             predicted bounding box
         pred_ids: dict
-            Each key will be a set of predictions of the model abd the values will hold the box id for each
+            Each key will be a set of predictions of the model and the values will hold the box id for each
             predicted bounding box
         next_id: dict
-            Each key will be a set of predictions of the model abd the values will hold the next id to be attributed to a 
+            Each key will be a set of predictions of the model and the values will hold the next id to be attributed to a 
             newly added box
     '''
     def __init__(self, handle_progress):
@@ -69,13 +69,13 @@ class OrganoiDL():
         # specify the url of the file which is to be downloaded
         down_url = settings.MODELS[model]["source"]
         # specify save location where the file is to be saved
-        save_loc = os.path.join(str(settings.MODELS_DIR), settings.MODELS[model]["filename"])
+        save_loc = join_paths(str(settings.MODELS_DIR), settings.MODELS[model]["filename"])
         # Downloading using urllib
         urlretrieve(down_url,save_loc, self.handle_progress)
 
     def load_model_checkpoint(self, model_name):
         ''' Loads the model checkpoint for the model specified in model_name '''
-        model_checkpoint = os.path.join(settings.MODELS_DIR, settings.MODELS[model_name]["filename"])
+        model_checkpoint = join_paths(settings.MODELS_DIR, settings.MODELS[model_name]["filename"])
         ckpt = torch.load(model_checkpoint, map_location=self.device)
         self.model.load_state_dict(ckpt) #.state_dict())
 
@@ -194,7 +194,7 @@ class OrganoiDL():
         self.next_id[shapes_name] = num_predictions+1
 
     def apply_params(self, shapes_name, confidence, min_diameter_um):
-        """ After resutls have been stored in dict this function will filter the dicts based on the confidence
+        """ After results have been stored in dict this function will filter the dicts based on the confidence
         and min_diameter_um thresholds for the given results defined by shape_name and return the filtered dicts. """
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um

@@ -18,7 +18,7 @@ from torchvision.ops import nms
 from napari_organoid_counter import settings
 
 
-def check_for_local_models_and_add():
+def add_local_models():
     """ Checks the models directory for any local models previously added by the user.
     If some are found then these are added to the model dictionary (see settings). """
     if not os.path.exists(settings.MODELS_DIR): return
@@ -38,8 +38,12 @@ def add_to_dict(filepath):
 
 def return_is_file(path, filename):
     """ Return True if the file exists in path and False otherwise """
-    full_path = os.path.join(path, filename)
+    full_path = join_paths(path, filename)
     return os.path.isfile(full_path)
+
+def join_paths(path1, path2):
+    """ Returns output of os.path.join """
+    return os.path.join(path1, path2)
 
 @contextmanager
 def set_dict_key(dictionary, key, value):

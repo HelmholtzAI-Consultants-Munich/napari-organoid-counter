@@ -1,4 +1,3 @@
-import os
 from typing import List
 
 from skimage.io import imsave
@@ -72,7 +71,7 @@ class OrganoidCounterWidget(QWidget):
         # models to the model dict
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        check_for_local_models_and_add()
+        add_local_models()
         self.model_name = list(settings.MODELS.keys())[0]
         
         # init params 
