@@ -122,7 +122,7 @@ class OrganoidCounterWidget(QWidget):
         read_data = blocknum * blocksize # calculate the progress
         if totalsize > 0:
             download_percentage = read_data * 100 / totalsize
-            self.progress_bar.setValue(download_percentage)
+            self.progress_bar.setValue(int(download_percentage))
             QApplication.processEvents()
 
     def _sel_layer_changed(self, event):
