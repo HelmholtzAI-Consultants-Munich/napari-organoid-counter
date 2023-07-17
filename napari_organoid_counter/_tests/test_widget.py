@@ -37,12 +37,13 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert np.min(img) >= 0.
 
     # test that organoid counting algorithm has run and new layer with res has been added to viewer
+    my_widget.organoiDL.download_model(my_widget.model_name)
     my_widget._on_run_click()
     layer_names = [layer.name for layer in  my_widget.viewer.layers]
     assert 'Labels-Test' in layer_names
     
     # test that class attributes are updated when user changes values from GUI
-    my_widget._on_diameter_changed()
+    my_widget._on_diameter_slider_changed()
     assert my_widget.min_diameter == my_widget.min_diameter_slider.value()
 
     my_widget._on_image_selection_changed()
