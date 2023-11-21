@@ -6,8 +6,8 @@ from datetime import datetime
 from napari import layers
 from napari.utils.notifications import show_info
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import *
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, QSlider
 
 from napari_organoid_counter._orgacount import OrganoiDL
 from napari_organoid_counter._utils import *
