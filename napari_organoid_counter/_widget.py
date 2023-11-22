@@ -6,11 +6,11 @@ from datetime import datetime
 from napari import layers
 from napari.utils.notifications import show_info
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import *
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, QSlider
 
 from napari_organoid_counter._orgacount import OrganoiDL
-from napari_organoid_counter._utils import *
+from napari_organoid_counter import _utils as utils
 from napari_organoid_counter import settings
 
 import warnings
@@ -72,7 +72,7 @@ class OrganoidCounterWidget(QWidget):
         # models to the model dict
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        add_local_models()
+        utils.add_local_models()
         self.model_name = list(settings.MODELS.keys())[0]
         
         # init params 
@@ -173,7 +173,7 @@ class OrganoidCounterWidget(QWidget):
     def _preprocess(self):
         """ Preprocess the current image in the viewer to improve visualisation for the user """
         img = self.original_images[self.image_layer_name]
-        img = apply_normalization(img)
+        img = utils.apply_normalization(img)
         self.viewer.layers[self.image_layer_name].data = img
         self.viewer.layers[self.image_layer_name].contrast_limits = (0,255)
 
@@ -230,7 +230,7 @@ class OrganoidCounterWidget(QWidget):
             show_info('Please load an image first and try again!')
             return
         # check if model exists locally and if not ask user if it's ok to download
-        if not return_is_file(settings.MODELS_DIR, settings.MODELS[self.model_name]["filename"]): 
+        if not utils.return_is_file(settings.MODELS_DIR, settings.MODELS[self.model_name]["filename"]): 
             confirm_window = ConfirmUpload(self)
             confirm_window.exec_()
             # if user clicks cancel return doing nothing 
@@ -254,7 +254,7 @@ class OrganoidCounterWidget(QWidget):
         img_data = self.viewer.layers[self.image_layer_name].data
         
         # check that image is grayscale
-        if len(squeeze_img(img_data).shape) > 2:
+        if len(utils.squeeze_img(img_data).shape) > 2:
             show_info('Only grayscale images currently supported. Try a different image or process it first and try again!')
             return 
         
@@ -298,7 +298,7 @@ class OrganoidCounterWidget(QWidget):
             model_path = fd.selectedFiles()[0]
         import shutil
         shutil.copy2(model_path, settings.MODELS_DIR)
-        model_name = add_to_dict(model_path)
+        model_name = utils.add_to_dict(model_path)
         self.model_selection.addItem(model_name)
 
     def _on_window_sizes_changed(self):
@@ -320,7 +320,7 @@ class OrganoidCounterWidget(QWidget):
         self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
         
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
-        with set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
+        with utils.set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
             # first update bboxes in organoiDLin case user has added/removed
             self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                                 self.cur_shapes_layer.data, 
@@ -409,12 +409,12 @@ class OrganoidCounterWidget(QWidget):
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
             # write diameters and area to csv
-            data_csv = get_bbox_diameters(bboxes, 
+            data_csv = utils.get_bbox_diameters(bboxes, 
                                           self.viewer.layers[self.save_layer_name].properties['box_id'],
                                           self.viewer.layers[self.save_layer_name].scale)
             fd = QFileDialog()
             name, _ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
-            if name: write_to_csv(name, data_csv)
+            if name: utils.write_to_csv(name, data_csv)
 
     def _on_save_json_click(self):
         """ Is called whenever Save boxes button is clicked """
@@ -422,14 +422,14 @@ class OrganoidCounterWidget(QWidget):
         #scores = #add
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
-            data_json = get_bboxes_as_dict(bboxes, 
+            data_json = utils.get_bboxes_as_dict(bboxes, 
                                            self.viewer.layers[self.save_layer_name].properties['box_id'],
                                            self.viewer.layers[self.save_layer_name].properties['scores'],
                                            self.viewer.layers[self.save_layer_name].scale)
             # write bbox coordinates to json
             fd = QFileDialog()
             name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
-            if name: write_to_json(name, data_json)
+            if name: utils.write_to_json(name, data_json)
 
     def _update_added_image(self, added_items):
         """
