@@ -23,9 +23,11 @@ jobs:
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
         python-version: [3.8, 3.9, "3.10"]
-
+    env:
+      DISPLAY: ':99.0'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v3
@@ -34,6 +36,13 @@ jobs:
 
       # these libraries enable testing on Qt on linux
       - uses: tlambert03/setup-qt-libs@v1
+      
+      # strategy borrowed from vispy for installing opengl libs on windows
+      - name: Install Windows OpenGL
+        if: runner.os == 'Windows'
+        run: |
+          git clone --depth 1 https://github.com/pyvista/gl-ci-helpers.git
+          powershell gl-ci-helpers/appveyor/install_opengl.ps1
 
       - name: Install dependencies
         run: |
