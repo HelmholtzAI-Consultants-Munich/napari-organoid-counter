@@ -113,16 +113,14 @@ def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
     # pad image
     pad_x = (img_height//step)*step + window_size - img_height
     pad_y = (img_width//step)*step + window_size - img_width
-    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='edge')
+    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='reflect')
     # normalise and convert to RGB - model input has size 3
     test_img = (test_img-np.min(test_img))/(np.max(test_img)-np.min(test_img)) 
     test_img = (255*test_img).astype(np.uint8)
     test_img = gray2rgb(test_img) #[H,W,C]
 
-    # convert to tensor and send to device
-    test_img = trans(test_img)
-    test_img = torch.unsqueeze(test_img, axis=0) #[B, C, H, W]
-    test_img = test_img.to(device)
+    # convert from RGB to GBR - expected from DetInferencer 
+    test_img = test_img[..., ::-1] 
     
     return test_img, img_height, img_width
 
@@ -174,21 +172,4 @@ def apply_normalization(img):
     img_max = np.max(img) # 2899.25 png 178
     img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
     return img_norm
-
-class frcnn(nn.Module):
-    def __init__(self, num_classes,rpn_score_thresh=0,box_score_thresh=0.05):
-        """ An FRCNN module loads the pretrained FasterRCNN model """
-        super(frcnn, self).__init__()
-        # define classes and load pretrained model
-        self.num_classes = num_classes
-        self.model = detection.fasterrcnn_resnet50_fpn(pretrained=True, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)
-        # get number of input features for the classifier
-        self.in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        # replace the pre-trained head with a new one
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(self.in_features, self.num_classes)
-        self.model.eval()
-
-    def forward(self, x, return_all=False):
-        """ A forward pass through the model """
-        return self.model(x)
  
