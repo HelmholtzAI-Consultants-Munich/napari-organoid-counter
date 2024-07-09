@@ -27,16 +27,16 @@ def init():
     global CONFIGS
     CONFIGS = {
         "faster r-cnn": {"source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid.py",
-                        "destination": "./mmdetection/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
+                        "destination": ".mim/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
                         },
         "ssd": {"source": "https://zenodo.org/records/11388549/files/ssd_organoid.py",
-                "destination": "./configs/ssd/ssd_organoid.py"
+                "destination": ".mim/configs/ssd/ssd_organoid.py"
                 },
         "yolov3": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
-                "destination": "./mmdetection/configs/yolo/yolov3_416_organoid.py"
+                "destination": ".mim/mmdetection/configs/yolo/yolov3_416_organoid.py"
                 },
         "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
-                    "destination": "./mmdetection/configs/rtmdet/rtmdet_l_organoid.py"
+                    "destination": ".mim/mmdetection/configs/rtmdet/rtmdet_l_organoid.py"
                     }
 }
 

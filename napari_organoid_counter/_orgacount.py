@@ -1,8 +1,6 @@
-import torch
-from torchvision.transforms import ToTensor
-from mmdet.apis import DetInferencer
-
 from urllib.request import urlretrieve
+import torch
+import mmdet
 from napari.utils import progress
 
 from napari_organoid_counter._utils import *
@@ -20,8 +18,6 @@ class OrganoiDL():
             The confidence threshold of the model
         cur_min_diam: float
             The minimum diameter of the organoids
-        transfroms: torchvision.transforms.ToTensor
-            The transformation for converting numpy image to tensor so it can be given as an input to the model
         model: frcnn
             The Faster R-CNN model
         img_scale: list of floats
@@ -46,7 +42,6 @@ class OrganoiDL():
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
-        self.transfroms = ToTensor()
 
         self.model = None
         self.img_scale = [0., 0.]
@@ -63,7 +58,7 @@ class OrganoiDL():
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
-        self.model = DetInferencer(str(settings.CONFIGS[model_name]["destination"]), model_checkpoint, self.device, show_progress=False)
+        self.model = mmdet.apis.DetInferencer(str(settings.CONFIGS[model_name]["destination"]), model_checkpoint, self.device, show_progress=False)
 
     def download_model(self, model_name='yolov3'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
@@ -74,7 +69,9 @@ class OrganoiDL():
         # downloading using urllib
         urlretrieve(down_url, save_loc, self.handle_progress)
         # now also download the corresponding config
-        urlretrieve(settings.CONFIGS[model_name]["source"], settings.CONFIGS[model_name]["destination"], self.handle_progress)
+        mmdet_path = os.path.dirname(mmdet.__file__)
+        config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
+        urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
 
     def sliding_window(self,
                        test_img,
@@ -167,9 +164,7 @@ class OrganoiDL():
             ready_img, prepadded_height, prepadded_width  = prepare_img(img,
                                                                         step,
                                                                         window_size,
-                                                                        rescale_factor,
-                                                                        self.transfroms,
-                                                                        self.device)
+                                                                        rescale_factor)
             # and run sliding window over whole image
             bboxes, scores = self.sliding_window(ready_img,
                                                  step,

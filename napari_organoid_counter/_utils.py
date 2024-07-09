@@ -10,9 +10,6 @@ from skimage.transform import rescale
 from skimage.color import gray2rgb
 
 import torch
-import torch.nn as nn
-from torchvision.models import detection
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops import nms
 
 from napari_organoid_counter import settings
@@ -104,7 +101,7 @@ def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
     return np.squeeze(img)
 
-def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
+def prepare_img(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
     # squeeze and resize image
     test_img = squeeze_img(test_img)
