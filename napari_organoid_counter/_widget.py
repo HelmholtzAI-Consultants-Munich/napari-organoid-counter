@@ -73,7 +73,8 @@ class OrganoidCounterWidget(QWidget):
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
         utils.add_local_models()
-        self.model_name = list(settings.MODELS.keys())[0]
+        self.model_id = 2 # yolov3
+        self.model_name = list(settings.MODELS.keys())[self.model_id]
         
         # init params 
         self.window_sizes = window_sizes
@@ -603,6 +604,7 @@ class OrganoidCounterWidget(QWidget):
         # setup drop down option for selecting which image to process
         self.model_selection = QComboBox()
         for name in settings.MODELS.keys(): self.model_selection.addItem(name)
+        self.model_selection.setCurrentIndex(self.model_id)
         self.model_selection.currentIndexChanged.connect(self._on_model_selection_changed)
         
         # and add all these to the layout

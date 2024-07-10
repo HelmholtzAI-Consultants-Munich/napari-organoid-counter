@@ -120,17 +120,17 @@ class OrganoiDL():
                 img_crop = test_img[i:(i+window_size), j:(j+window_size)]
                 # get predictions
                 output = self.model(img_crop)
-                preds = output['predictions'][0]['boxes']
+                preds = output['predictions'][0]['bboxes']
                 if len(preds)==0: continue
                 else:
                     for bbox_id in range(len(preds)):
-                        y1, x1, y2, x2 = preds[bbox_id].cpu().detach() # predictions from model will be in form x1,y1,x2,y2
+                        y1, x1, y2, x2 = preds[bbox_id] # predictions from model will be in form x1,y1,x2,y2
                         x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
                         x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
                         y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
                         y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
                         pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
-                        scores_list.append(output['predictions'][0]['scores'][bbox_id].cpu().detach())
+                        scores_list.append(output['predictions'][0]['scores'][bbox_id])
         return pred_bboxes, scores_list
 
     def run(self, 
@@ -177,9 +177,10 @@ class OrganoiDL():
                                                  prepadded_width,
                                                  bboxes,
                                                  scores)
+            print('Windowsize:', len(bboxes))
         # stack results
         bboxes = torch.stack(bboxes)
-        scores = torch.stack(scores)
+        scores = torch.Tensor(scores)
         # apply NMS to remove overlaping boxes
         bboxes, pred_scores = apply_nms(bboxes, scores)
         self.pred_bboxes[shapes_name] = bboxes

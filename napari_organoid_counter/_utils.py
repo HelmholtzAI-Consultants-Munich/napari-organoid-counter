@@ -110,7 +110,7 @@ def prepare_img(test_img, step, window_size, rescale_factor):
     # pad image
     pad_x = (img_height//step)*step + window_size - img_height
     pad_y = (img_width//step)*step + window_size - img_width
-    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='reflect')
+    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='edge')
     # normalise and convert to RGB - model input has size 3
     test_img = (test_img-np.min(test_img))/(np.max(test_img)-np.min(test_img)) 
     test_img = (255*test_img).astype(np.uint8)
