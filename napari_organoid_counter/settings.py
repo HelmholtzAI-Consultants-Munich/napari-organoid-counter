@@ -33,10 +33,10 @@ def init():
                 "destination": ".mim/configs/ssd/ssd_organoid.py"
                 },
         "yolov3": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
-                "destination": ".mim/mmdetection/configs/yolo/yolov3_416_organoid.py"
+                "destination": ".mim/configs/yolo/yolov3_416_organoid.py"
                 },
         "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
-                    "destination": ".mim/mmdetection/configs/rtmdet/rtmdet_l_organoid.py"
+                    "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
                     }
 }
 

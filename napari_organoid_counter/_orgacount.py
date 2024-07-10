@@ -1,6 +1,7 @@
 from urllib.request import urlretrieve
 import torch
 import mmdet
+from mmdet.apis import DetInferencer
 from napari.utils import progress
 
 from napari_organoid_counter._utils import *
@@ -58,7 +59,9 @@ class OrganoiDL():
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
-        self.model = mmdet.apis.DetInferencer(str(settings.CONFIGS[model_name]["destination"]), model_checkpoint, self.device, show_progress=False)
+        mmdet_path = os.path.dirname(mmdet.__file__)
+        config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
+        self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
 
     def download_model(self, model_name='yolov3'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
