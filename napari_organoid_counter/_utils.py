@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import pkgutil
 
 import numpy as np
 import math
@@ -169,4 +170,26 @@ def apply_normalization(img):
     img_max = np.max(img) # 2899.25 png 178
     img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
     return img_norm
- 
+
+def get_package_init_file(package_name):
+    loader = pkgutil.get_loader(package_name)
+    if loader is None or not hasattr(loader, 'get_filename'):
+        raise ImportError(f"Cannot find package {package_name}")
+    package_path = loader.get_filename(package_name)
+    # Determine the path to the __init__.py file
+    if os.path.isdir(package_path):
+        init_file_path = os.path.join(package_path, '__init__.py')
+    else:
+        init_file_path = package_path
+    if not os.path.isfile(init_file_path):
+        raise FileNotFoundError(f"__init__.py file not found for package {package_name}")
+    return init_file_path
+
+def update_version_in_mmdet_init_file(package_name, old_version, new_version):
+    init_file_path = get_package_init_file(package_name)
+    with open(init_file_path, 'r') as file:
+        lines = file.readlines()
+    with open(init_file_path, 'w') as file:
+        for line in lines:
+            if f"mmcv_maximum_version = '{old_version}'" in line:
+                file.write(line.replace(old_version, new_version))

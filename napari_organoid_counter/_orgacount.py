@@ -1,12 +1,13 @@
 from urllib.request import urlretrieve
-import torch
-import mmdet
-from mmdet.apis import DetInferencer
 from napari.utils import progress
 
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
+update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.2.1')
+import torch
+import mmdet
+from mmdet.apis import DetInferencer
 
 class OrganoiDL():
     '''
@@ -61,6 +62,9 @@ class OrganoiDL():
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         mmdet_path = os.path.dirname(mmdet.__file__)
         config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
+        # download the corresponding config if it doesn't exist already
+        if not os.path.exists(config_dst):
+            urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
         self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
 
     def download_model(self, model_name='yolov3'):
@@ -71,10 +75,6 @@ class OrganoiDL():
         save_loc = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         # downloading using urllib
         urlretrieve(down_url, save_loc, self.handle_progress)
-        # now also download the corresponding config
-        mmdet_path = os.path.dirname(mmdet.__file__)
-        config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
-        urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
 
     def sliding_window(self,
                        test_img,
@@ -177,7 +177,6 @@ class OrganoiDL():
                                                  prepadded_width,
                                                  bboxes,
                                                  scores)
-            print('Windowsize:', len(bboxes))
         # stack results
         bboxes = torch.stack(bboxes)
         scores = torch.Tensor(scores)
