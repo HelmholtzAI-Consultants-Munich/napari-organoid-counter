@@ -36,7 +36,18 @@ For the dev branch you can clone this repo and install with:
 
     pip install -e .  
 
-For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+**Notes**
+1. If you have problems with the mmcv package installation, you may have an error like this once you start napari and try to select the plugin:
+```
+ModuleNotFoundError: No module named 'mmcv._ext'
+``` 
+In that case, you need to remove mmcv from the list of pip installed packages in your setup.cfg and instead install it using openmim as such:
+```
+mim install mmcv==2.2.0
+```
+Please do this in a new environment, using conda or alike.
+
+2. For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
 ## What's new in v2?
 Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
