@@ -1,12 +1,12 @@
 ## Description
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. A Faster R-CNN model was trained on patches of microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
+A napari plugin to automatically count lung organoids from microscopy imaging data. Several object detection DL models were trained on patches of 2D microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
 
 ## What's new in v2?
 Here is a list of the main changes v2 of napari-organoid-counter offers:
-* Use of Faster R-CNN model for object detection 
+* Use of DL models for object detection - pretrained models: Faster R-CNN, YOLOv3, SSD, and RTMDet. The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
 * Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
 * Model confidence added as tunable parameter
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
@@ -29,7 +29,18 @@ To install latest development version :
 
     pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
 
-For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+
+**Notes**
+1. If you have problems with the mmcv package installation, you may have an error like this once you start napari and try to select the plugin:
+```
+ModuleNotFoundError: No module named 'mmcv._ext'
+``` 
+In that case, you need to remove mmcv from the list of pip installed packages in your setup.cfg and instead install it using openmim as such:
+```
+mim install mmcv==2.2.0
+```
+
+2. For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
 ## Quickstart
 
