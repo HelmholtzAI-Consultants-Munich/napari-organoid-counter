@@ -39,6 +39,7 @@ In that case, you need to remove mmcv from the list of pip installed packages in
 ```
 mim install mmcv==2.2.0
 ```
+Please do this in a new environment, using conda or alike.
 
 2. For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
