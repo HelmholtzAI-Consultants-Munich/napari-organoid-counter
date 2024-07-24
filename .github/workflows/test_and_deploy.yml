@@ -46,16 +46,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pytest-cookies tox
+          python -m pip install tox
 
       # this runs the platform-specific tests declared in tox.ini
       
-      - name: Test
-        uses: aganders3/headless-gui@v1
-        with:
-          run: |
-            pip install -e ".[testing]"
-            python -m pytest -s -v --color=yes
+      - name: Test with tox
+        run: tox
         env:
           PLATFORM: ${{ matrix.platform }}
 
@@ -77,6 +73,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install twine 
           pip install build
+          pip install openmim
+      - name: Run post_install.py
+        run: python post_install.py
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__
