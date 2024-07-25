@@ -1,5 +1,5 @@
 name: napari-organoid-counter
-display_name: napari OrganoidCounter
+display_name: napari organoid counter
 contributions:
   commands:
     - id: napari-organoid-counter.OrganoidCounterWidget

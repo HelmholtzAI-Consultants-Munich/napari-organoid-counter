@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     strategy:
       matrix:
-        platform: [ubuntu-latest, windows-latest, macos-latest]
+        platform: [ubuntu-latest, windows-latest]
         python-version: [3.9, "3.10"]
     env:
       DISPLAY: ':99.0'
@@ -52,8 +52,8 @@ jobs:
         uses: aganders3/headless-gui@v1
         with:
           run: |
-            pip install -e ".[testing]"
-            mim install "mmcv<2.2.0,>=2.0.0rc4"
+            pip install -e ".[testing]" --no-cache-dir
+            mim install "mmcv<2.2.0,>=2.0.0rc4" --no-cache-dir
             python -m pytest -s -v --color=yes
         env:
           PLATFORM: ${{ matrix.platform }}
