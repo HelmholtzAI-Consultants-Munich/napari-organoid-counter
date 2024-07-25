@@ -24,6 +24,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install openmim
+        pip intall "torch>=2.3.1"
         # Install mmcv-full, adjust the link to match the appropriate version of Python and PyTorch as needed
         mim install "mmcv<2.2.0,>=2.0.0rc4"  --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
     - name: Verify Installation
