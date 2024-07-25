@@ -32,9 +32,9 @@ This plugin has been tested with python 3.9 and 3.10 - you may consider using co
 
 2. Additionally, you will then need to install one additional dependency: 
 
-  ``` mim install "mmcv>=2.2.0" ```
+  ``` mim install "mmcv<2.2.0,>=2.0.0rc4" ```
 
-For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv>=2.2.0").
+For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv<2.2.0,>=2.0.0rc4").
 
 ## Quickstart
 

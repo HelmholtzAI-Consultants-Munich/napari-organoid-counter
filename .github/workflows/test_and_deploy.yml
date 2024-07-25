@@ -53,7 +53,7 @@ jobs:
         with:
           run: |
             pip install -e ".[testing]"
-            mim install "mmcv>=2.2.0"
+            mim install "mmcv<2.2.0,>=2.0.0rc4"
             python -m pytest -s -v --color=yes
         env:
           PLATFORM: ${{ matrix.platform }}
