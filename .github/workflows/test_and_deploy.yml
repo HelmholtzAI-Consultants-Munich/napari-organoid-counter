@@ -49,14 +49,14 @@ jobs:
           python -m pip install pytest pytest-qt pytest-cookies
 
       - name: Test
-      uses: aganders3/headless-gui@v1
-      with:
-        run: |
-          pip install -e ".[testing]"
-          mim install mmcv>=2.2.0
-          python -m pytest -s -v --color=yes
-        env:
-          PLATFORM: ${{ matrix.platform }}
+        uses: aganders3/headless-gui@v1
+        with:
+          run: |
+            pip install -e ".[testing]"
+            mim install mmcv>=2.2.0
+            python -m pytest -s -v --color=yes
+          env:
+            PLATFORM: ${{ matrix.platform }}
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
