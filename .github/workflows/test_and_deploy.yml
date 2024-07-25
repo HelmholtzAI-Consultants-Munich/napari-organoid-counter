@@ -53,7 +53,7 @@ jobs:
         with:
           run: |
             pip install -e ".[testing]" --no-cache-dir
-            pip install "mmcv<2.2.0,>=2.0.0rc4" --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch1.8.0/cpu
+            pip install "mmcv<2.2.0,>=2.0.0rc4" --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
             python -m pytest -s -v --color=yes
         env:
           PLATFORM: ${{ matrix.platform }}
