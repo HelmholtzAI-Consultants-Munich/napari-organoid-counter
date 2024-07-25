@@ -24,7 +24,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         # Install mmcv-full, adjust the link to match the appropriate version of Python and PyTorch as needed
-        pip install mmcv-full --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch1.8.0/cpu
+        pip install mmcv --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch1.8.0/cpu
     - name: Verify Installation
       run: |
         python -m pip list
