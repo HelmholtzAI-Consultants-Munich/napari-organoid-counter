@@ -23,9 +23,9 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install openmim
         # Install mmcv-full, adjust the link to match the appropriate version of Python and PyTorch as needed
-        pip install "torch>=2.3.1"
-        pip install "mmcv<2.2.0,>=2.0.0rc4"  --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
+        mim install "mmcv<2.2.0,>=2.0.0rc4"  --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
     - name: Verify Installation
       run: |
         python -m pip list
