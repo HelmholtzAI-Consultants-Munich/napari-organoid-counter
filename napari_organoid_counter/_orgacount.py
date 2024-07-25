@@ -1,12 +1,13 @@
-import torch
-from torchvision.transforms import ToTensor
-
 from urllib.request import urlretrieve
 from napari.utils import progress
 
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
+#update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
+import torch
+import mmdet
+from mmdet.apis import DetInferencer
 
 class OrganoiDL():
     '''
@@ -19,8 +20,6 @@ class OrganoiDL():
             The confidence threshold of the model
         cur_min_diam: float
             The minimum diameter of the organoids
-        transfroms: torchvision.transforms.ToTensor
-            The transformation for converting numpy image to tensor so it can be given as an input to the model
         model: frcnn
             The Faster R-CNN model
         img_scale: list of floats
@@ -45,7 +44,6 @@ class OrganoiDL():
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
-        self.transfroms = ToTensor()
 
         self.model = None
         self.img_scale = [0., 0.]
@@ -60,24 +58,23 @@ class OrganoiDL():
 
     def set_model(self, model_name):
         ''' Initialise  model instance and load model checkpoint and send to device. '''
-        self.model = frcnn(num_classes=2, rpn_score_thresh=0, box_score_thresh = self.cur_confidence)
-        self.load_model_checkpoint(model_name)
-        self.model = self.model.to(self.device)
 
-    def download_model(self, model='default'):
+        model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
+        mmdet_path = os.path.dirname(mmdet.__file__)
+        config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
+        # download the corresponding config if it doesn't exist already
+        if not os.path.exists(config_dst):
+            urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
+        self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
+
+    def download_model(self, model_name='yolov3'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
-        # specify the url of the file which is to be downloaded
-        down_url = settings.MODELS[model]["source"]
+        # specify the url of the model which is to be downloaded
+        down_url = settings.MODELS[model_name]["source"]
         # specify save location where the file is to be saved
-        save_loc = join_paths(str(settings.MODELS_DIR), settings.MODELS[model]["filename"])
-        # Downloading using urllib
-        urlretrieve(down_url,save_loc, self.handle_progress)
-
-    def load_model_checkpoint(self, model_name):
-        ''' Loads the model checkpoint for the model specified in model_name '''
-        model_checkpoint = join_paths(settings.MODELS_DIR, settings.MODELS[model_name]["filename"])
-        ckpt = torch.load(model_checkpoint, map_location=self.device)
-        self.model.load_state_dict(ckpt) #.state_dict())
+        save_loc = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
+        # downloading using urllib
+        urlretrieve(down_url, save_loc, self.handle_progress)
 
     def sliding_window(self,
                        test_img,
@@ -120,20 +117,20 @@ class OrganoiDL():
         for i in progress(range(0, prepadded_height, step)):
             for j in progress(range(0, prepadded_width, step)):
                 # crop
-                img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
+                img_crop = test_img[i:(i+window_size), j:(j+window_size)]
                 # get predictions
-                output = self.model(img_crop.float())
-                preds = output[0]['boxes']
-                if preds.size(0)==0: continue
+                output = self.model(img_crop)
+                preds = output['predictions'][0]['bboxes']
+                if len(preds)==0: continue
                 else:
-                    for bbox_id in range(preds.size(0)):
-                        y1, x1, y2, x2 = preds[bbox_id].cpu().detach() # predictions from model will be in form x1,y1,x2,y2
+                    for bbox_id in range(len(preds)):
+                        y1, x1, y2, x2 = preds[bbox_id] # predictions from model will be in form x1,y1,x2,y2
                         x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
                         x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
                         y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
                         y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
                         pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
-                        scores_list.append(output[0]['scores'][bbox_id].cpu().detach())
+                        scores_list.append(output['predictions'][0]['scores'][bbox_id])
         return pred_bboxes, scores_list
 
     def run(self, 
@@ -170,9 +167,7 @@ class OrganoiDL():
             ready_img, prepadded_height, prepadded_width  = prepare_img(img,
                                                                         step,
                                                                         window_size,
-                                                                        rescale_factor,
-                                                                        self.transfroms,
-                                                                        self.device)
+                                                                        rescale_factor)
             # and run sliding window over whole image
             bboxes, scores = self.sliding_window(ready_img,
                                                  step,
@@ -184,7 +179,7 @@ class OrganoiDL():
                                                  scores)
         # stack results
         bboxes = torch.stack(bboxes)
-        scores = torch.stack(scores)
+        scores = torch.Tensor(scores)
         # apply NMS to remove overlaping boxes
         bboxes, pred_scores = apply_nms(bboxes, scores)
         self.pred_bboxes[shapes_name] = bboxes

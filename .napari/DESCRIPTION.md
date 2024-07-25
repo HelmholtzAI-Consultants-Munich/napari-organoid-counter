@@ -1,12 +1,12 @@
 ## Description
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. A Faster R-CNN model was trained on patches of microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
+A napari plugin to automatically count lung organoids from microscopy imaging data. Several object detection DL models were trained on patches of 2D microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
 
 ## What's new in v2?
 Here is a list of the main changes v2 of napari-organoid-counter offers:
-* Use of Faster R-CNN model for object detection 
+* Use of DL models for object detection - pretrained models: Faster R-CNN, YOLOv3, SSD, and RTMDet. The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
 * Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
 * Model confidence added as tunable parameter
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
@@ -20,16 +20,21 @@ Technical Extensions:
 
 ## Installation
 
-You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
+This plugin has been tested with python 3.9 and 3.10 - you may consider using conda to create your dedicated environment before running the `napari-organoid-counter`.
 
-    pip install napari-organoid-counter
+1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
+    ```pip install napari-organoid-counter```
 
-To install latest development version :
+   To install latest development version :
 
-    pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+    ```pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git```
 
-For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+2. Additionally, you will then need to install one additional dependency: 
+
+  ``` mim install "mmcv<2.2.0,>=2.0.0rc4" ```
+
+For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv<2.2.0,>=2.0.0rc4").
 
 ## Quickstart
 
@@ -68,6 +73,11 @@ This plugin has been developed and tested with 2D CZI microscopy images of lunch
 [1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
 
 [2] Eva Maxfield Brown, Talley Lambert, Peter Sobolewski, Napari-AICSImageIO Contributors (2021). Napari-AICSImageIO: Image Reading in Napari using AICSImageIO [Computer software]. GitHub. https://github.com/AllenCellModeling/napari-aicsimageio
+
+The latest version also uses models developed with the ```mmdetection``` package <sup>[3]</sup>, see [here](https://github.com/open-mmlab/mmdetection)
+
+[3] Chen, Kai, et al. "MMDetection: Open mmlab detection toolbox and benchmark." arXiv preprint arXiv:1906.07155 (2019).
+
 
 ## How to Cite
 If you use this plugin for your work, please cite it using the following:

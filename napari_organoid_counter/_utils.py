@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import pkgutil
 
 import numpy as np
 import math
@@ -10,9 +11,6 @@ from skimage.transform import rescale
 from skimage.color import gray2rgb
 
 import torch
-import torch.nn as nn
-from torchvision.models import detection
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops import nms
 
 from napari_organoid_counter import settings
@@ -104,7 +102,7 @@ def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
     return np.squeeze(img)
 
-def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
+def prepare_img(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
     # squeeze and resize image
     test_img = squeeze_img(test_img)
@@ -119,10 +117,8 @@ def prepare_img(test_img, step, window_size, rescale_factor, trans, device):
     test_img = (255*test_img).astype(np.uint8)
     test_img = gray2rgb(test_img) #[H,W,C]
 
-    # convert to tensor and send to device
-    test_img = trans(test_img)
-    test_img = torch.unsqueeze(test_img, axis=0) #[B, C, H, W]
-    test_img = test_img.to(device)
+    # convert from RGB to GBR - expected from DetInferencer 
+    test_img = test_img[..., ::-1] 
     
     return test_img, img_height, img_width
 
@@ -175,20 +171,25 @@ def apply_normalization(img):
     img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
     return img_norm
 
-class frcnn(nn.Module):
-    def __init__(self, num_classes,rpn_score_thresh=0,box_score_thresh=0.05):
-        """ An FRCNN module loads the pretrained FasterRCNN model """
-        super(frcnn, self).__init__()
-        # define classes and load pretrained model
-        self.num_classes = num_classes
-        self.model = detection.fasterrcnn_resnet50_fpn(pretrained=True, rpn_score_thresh = rpn_score_thresh, box_score_thresh = box_score_thresh)
-        # get number of input features for the classifier
-        self.in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        # replace the pre-trained head with a new one
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(self.in_features, self.num_classes)
-        self.model.eval()
+def get_package_init_file(package_name):
+    loader = pkgutil.get_loader(package_name)
+    if loader is None or not hasattr(loader, 'get_filename'):
+        raise ImportError(f"Cannot find package {package_name}")
+    package_path = loader.get_filename(package_name)
+    # Determine the path to the __init__.py file
+    if os.path.isdir(package_path):
+        init_file_path = os.path.join(package_path, '__init__.py')
+    else:
+        init_file_path = package_path
+    if not os.path.isfile(init_file_path):
+        raise FileNotFoundError(f"__init__.py file not found for package {package_name}")
+    return init_file_path
 
-    def forward(self, x, return_all=False):
-        """ A forward pass through the model """
-        return self.model(x)
- 
+def update_version_in_mmdet_init_file(package_name, old_version, new_version):
+    init_file_path = get_package_init_file(package_name)
+    with open(init_file_path, 'r') as file:
+        lines = file.readlines()
+    with open(init_file_path, 'w') as file:
+        for line in lines:
+            if f"mmcv_maximum_version = '{old_version}'" in line:
+                file.write(line.replace(old_version, new_version))

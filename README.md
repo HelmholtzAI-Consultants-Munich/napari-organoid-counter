@@ -1,13 +1,14 @@
 # Napari Organoid Counter - Version 0.2 is out! 
 
+[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
 [![License](https://img.shields.io/pypi/l/napari-organoid-counter.svg?color=green)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-organoid-counter.svg?color=green)](https://pypi.org/project/napari-organoid-counter)
-[![Python Version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.9%20%7C%203.10-blue)](https://python.org)
 [![tests](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/workflows/tests/badge.svg)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/actions)
 [![codecov](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter/branch/main/graph/badge.svg)](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
+
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. Note: this plugin only supports single channel grayscale images.
 
@@ -22,21 +23,21 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 ## Installation
 
-You can install `napari-organoid-counter` via [pip]:
+This plugin has been tested with python 3.9 and 3.10 - you may consider using conda to create your dedicated environment before running the `napari-organoid-counter`.
 
-    pip install napari-organoid-counter
+1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
+    ``` pip install napari-organoid-counter```
 
-To install latest development version :
+   To install latest development version :
 
-    pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
-    
-    
-For the dev branch you can clone this repo and install with:
+    ```pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git```
 
-    pip install -e .  
+2. Additionally, you will then need to install one additional dependency:
 
-For installing on a Windows machine via napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+     ``` mim install "mmcv<2.2.0,>=2.0.0rc4" ```
+
+For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv<2.2.0,>=2.0.0rc4").
 
 ## What's new in v2?
 Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
@@ -48,7 +49,7 @@ For more information on this plugin, its' intended audience, as well as Quicksta
 
 ## Contributing
 
-Contributions are very welcome. Tests can be run with [tox], please ensure
+Contributions are very welcome. Tests can be run with [pytest], please ensure
 the coverage at least stays the same before you submit a pull request.
 
 ## License
@@ -64,6 +65,10 @@ Distributed under the terms of the [MIT] license,
 [1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
 
 [2] Eva Maxfield Brown, Talley Lambert, Peter Sobolewski, Napari-AICSImageIO Contributors (2021). Napari-AICSImageIO: Image Reading in Napari using AICSImageIO [Computer software]. GitHub. https://github.com/AllenCellModeling/napari-aicsimageio
+
+The latest version also uses models developed with the ```mmdetection``` package <sup>[3]</sup>, see [here](https://github.com/open-mmlab/mmdetection)
+
+[3] Chen, Kai, et al. "MMDetection: Open mmlab detection toolbox and benchmark." arXiv preprint arXiv:1906.07155 (2019).
 
 ## Issues
 
@@ -83,7 +88,6 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [file an issue]: https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues
 
 [napari]: https://github.com/napari/napari
-[tox]: https://tox.readthedocs.io/en/latest/
 [pip]: https://pypi.org/project/pip/
 [PyPI]: https://pypi.org/
 
