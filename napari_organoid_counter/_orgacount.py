@@ -4,7 +4,7 @@ from napari.utils import progress
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
-update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
+#update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import torch
 import mmdet
 from mmdet.apis import DetInferencer
