@@ -31,6 +31,7 @@ jobs:
         python -m pip list
         python -c "import mmcv; print('MMCV version:', mmcv.__version__)"
         python -c "import mmcv; print('MMCV installation path:', mmcv.__file__)"
+        python -c "from mmcv.ops.roi_align import roi_align"
 
 
 
