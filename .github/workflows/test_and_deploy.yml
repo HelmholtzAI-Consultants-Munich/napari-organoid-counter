@@ -53,10 +53,10 @@ jobs:
         with:
           run: |
             pip install -e ".[testing]"
-            mim install mmcv>=2.2.0
+            mim install "mmcv>=2.2.0"
             python -m pytest -s -v --color=yes
-          env:
-            PLATFORM: ${{ matrix.platform }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
@@ -76,9 +76,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install twine 
           pip install build
-          pip install openmim
-      - name: Run post_install.py
-        run: python post_install.py
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__

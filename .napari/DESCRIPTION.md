@@ -20,28 +20,21 @@ Technical Extensions:
 
 ## Installation
 
-You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
+This plugin has been tested with python 3.9 and 3.10 - you may consider using conda to create your dedicated environment before running the `napari-organoid-counter`.
 
-    pip install napari-organoid-counter
+1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
+    ```pip install napari-organoid-counter```
 
-To install latest development version :
+   To install latest development version :
 
-    pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git
+    ```pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git```
 
+2. Additionally, you will then need to install one additional dependency: 
 
-**Notes**
-1. If you have problems with the mmcv package installation, you may have an error like this once you start napari and try to select the plugin:
-```
-ModuleNotFoundError: No module named 'mmcv._ext'
-``` 
-In that case, you need to remove mmcv from the list of pip installed packages in your setup.cfg and instead install it using openmim as such:
-```
-mim install mmcv==2.2.0
-```
-Please do this in a new environment, using conda or alike.
+  ``` mim install "mmcv>=2.2.0" ```
 
-2. For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv>=2.2.0").
 
 ## Quickstart
 
@@ -82,6 +75,7 @@ This plugin has been developed and tested with 2D CZI microscopy images of lunch
 [2] Eva Maxfield Brown, Talley Lambert, Peter Sobolewski, Napari-AICSImageIO Contributors (2021). Napari-AICSImageIO: Image Reading in Napari using AICSImageIO [Computer software]. GitHub. https://github.com/AllenCellModeling/napari-aicsimageio
 
 The latest version also uses models developed with the ```mmdetection``` package <sup>[3]</sup>, see [here](https://github.com/open-mmlab/mmdetection)
+
 [3] Chen, Kai, et al. "MMDetection: Open mmlab detection toolbox and benchmark." arXiv preprint arXiv:1906.07155 (2019).
 
 
