@@ -3,8 +3,12 @@ from typing import List
 from skimage.io import imsave
 from datetime import datetime
 
+import napari
+
 from napari import layers
 from napari.utils.notifications import show_info
+
+import numpy as np
 
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, QSlider
@@ -112,9 +116,86 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.inserted.connect(self._added_layer)
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
+    
         # setup flags used for changing slider and text of min diameter and confidence threshold
         self.diameter_slider_changed = False 
-        self.confidence_slider_changed = False 
+        self.confidence_slider_changed = False
+
+        # Key binding to return the ID of the bounding boxes selected from the GUI
+        @self.viewer.bind_key('s')
+        def selected_boxes(viewer: napari.Viewer):
+            if self.cur_shapes_layer is not None:  # Check if there is a valid shapes layer selected
+                selected_shapes = self.cur_shapes_layer.selected_data
+                print(f"Selected shapes indices: {selected_shapes}")
+
+        # Dictionary where key are shape indices and values are RGBA colors
+        self.original_colors = {}
+
+        # Key binding to change the edge_color of the bounding boxes to green
+        @self.viewer.bind_key('g')
+        def change_edge_color_to_green(viewer: napari.Viewer):
+            if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
+                selected_shapes = self.cur_shapes_layer.selected_data # Retrieves indices of shapes currently selected, returns a set 
+                if len(selected_shapes) > 0:
+                    # Set the edge color of selected shapes to green
+                    new_edge_color = [85/255, 1., 0, 1.]  # RGBA for green
+                    # Modify the edge color only for the selected shapes
+                    current_edge_colors = self.cur_shapes_layer.edge_color 
+                    for idx in selected_shapes:
+                        # Save original color
+                        if idx not in self.original_colors: 
+                            self.original_colors[idx] = current_edge_colors[idx].copy()
+                        # Update to the new color
+                        current_edge_colors[idx] = new_edge_color
+
+                    self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
+                    print(f"Changed edge color of {idx} to {new_edge_color}")
+                else:
+                    print("No shapes selected to change edge color.")
+
+        # Key binding to change the edge_color of the bounding boxes to blue
+        @self.viewer.bind_key('h')
+        def change_edge_color_to_blue(viewer: napari.Viewer):
+            if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
+                selected_shapes = self.cur_shapes_layer.selected_data
+                if len(selected_shapes) > 0:
+                    # Set the edge color of selected shapes to green
+                    new_edge_color = [0, 29/255, 1., 1.]  # RGBA for blue
+                    # Modify the edge color only for the selected shapes
+                    current_edge_colors = self.cur_shapes_layer.edge_color
+                    for idx in selected_shapes:
+                        # Save original color
+                        if idx not in self.original_colors: 
+                            self.original_colors[idx] = current_edge_colors[idx].copy()
+                        # Update to the new color
+                        current_edge_colors[idx] = new_edge_color
+                    self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
+                    print(f"Changed edge color of {idx} to {new_edge_color}")
+                else:
+                    print("No shapes selected to change edge color.")
+
+        # Key binding to reset the edge_color of selected bounding boxes to their original color
+        @self.viewer.bind_key('z')
+        def reset_edge_color(viewer: napari.Viewer):
+            if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
+                selected_shapes = self.cur_shapes_layer.selected_data
+                if len(selected_shapes) > 0:
+                    current_edge_colors = self.cur_shapes_layer.edge_color
+
+                    for idx in selected_shapes:
+                        if idx in self.original_colors:
+                            # Revert to the original color
+                            current_edge_colors[idx] = self.original_colors[idx]
+                            # Remove from the dictionary after reverting
+                            del self.original_colors[idx]
+                        else:
+                            print(f"No original color stored for shape {idx}, skipping reset.")
+
+                    self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
+                    print(f"Reset edge color of {idx} to their original color.")
+                else:
+                    print("No shapes selected to reset edge color.")
+
 
     def handle_progress(self, blocknum, blocksize, totalsize):
         """ When the model is being downloaded, this method is called and th progress of the download
@@ -218,6 +299,7 @@ class OrganoidCounterWidget(QWidget):
                             
             # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
             self.viewer.layers[labels_layer_name].current_edge_width = 12
+            
 
     def _on_preprocess_click(self):
         """ Is called whenever preprocess button is clicked """
@@ -423,10 +505,41 @@ class OrganoidCounterWidget(QWidget):
         #scores = #add
         if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
         else:
+            # Get the edge colors for all bounding boxes
+            edge_colors = self.cur_shapes_layer.edge_color
+            labels = []
+
+            # Check if all bounding boxes have their edge color set (not green or blue)
+            green = np.array([85/255, 1., 0, 1.])
+            blue = np.array([29/255, 0, 1., 1.])
+
+            all_colored = True
+            for edge_color in edge_colors:
+                # Compare the colors with a tolerance using np.allclose to account for floating-point errors
+                if not (np.allclose(edge_color[:3], green[:3]) or np.allclose(edge_color[:3], blue[:3])):
+                    all_colored = False
+                    break
+
+            if not all_colored:
+                show_info('Please change the color of all bounding boxes before saving.')
+                return
+            
+            # Assign organoid label based on edge_color
+            for edge_color in edge_colors:
+                if np.allclose(edge_color[:3], green[:3]):
+                    labels.append(0)  # Label for green
+                elif np.allclose(edge_color[:3], blue[:3]):
+                    labels.append(1)  # Label for blue
+                else:
+                    labels.append(-1)  # Label for other colors
+
             data_json = utils.get_bboxes_as_dict(bboxes, 
-                                           self.viewer.layers[self.save_layer_name].properties['box_id'],
-                                           self.viewer.layers[self.save_layer_name].properties['scores'],
-                                           self.viewer.layers[self.save_layer_name].scale)
+                                        self.viewer.layers[self.save_layer_name].properties['box_id'],
+                                        self.viewer.layers[self.save_layer_name].properties['scores'],
+                                        self.viewer.layers[self.save_layer_name].scale,
+                                        labels=labels)
+            
+        
             # write bbox coordinates to json
             fd = QFileDialog()
             name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
@@ -471,7 +584,8 @@ class OrganoidCounterWidget(QWidget):
         self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                             self.cur_shapes_layer.data,
                                             self.cur_shapes_layer.properties['scores'],
-                                            self.cur_shapes_layer.properties['box_id'])
+                                            self.cur_shapes_layer.properties['box_id']
+                                            )
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
         
     def _update_remove_shapes(self, removed_layers):
@@ -507,6 +621,7 @@ class OrganoidCounterWidget(QWidget):
                 new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
                 new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
                 new_scores[-1] = 1
+    
             # set new properties to shapes layer
             self.viewer.layers[self.cur_shapes_name].properties ={'box_id': new_ids,'scores':  new_scores}
             # refresh text displayed
