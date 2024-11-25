@@ -99,6 +99,10 @@ class OrganoidCounterWidget(QWidget):
         self.stored_confidences = {}
         self.stored_diameters = {}
 
+        # Initialize multi_annotation_mode to False by default
+        self.multi_annotation_mode = False
+        self.single_annotation_mode = True  # Initially, it's single annotation mode
+
         # setup gui        
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(self._setup_input_widget())
@@ -134,6 +138,10 @@ class OrganoidCounterWidget(QWidget):
         # Key binding to change the edge_color of the bounding boxes to green
         @self.viewer.bind_key('g')
         def change_edge_color_to_green(viewer: napari.Viewer):
+            if self.single_annotation_mode:  # Check if single-annotation mode is active
+                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+                return
+            
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data # Retrieves indices of shapes currently selected, returns a set 
                 if len(selected_shapes) > 0:
@@ -156,6 +164,10 @@ class OrganoidCounterWidget(QWidget):
         # Key binding to change the edge_color of the bounding boxes to blue
         @self.viewer.bind_key('h')
         def change_edge_color_to_blue(viewer: napari.Viewer):
+            if self.single_annotation_mode:  # Check if single-annotation mode is active
+                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+                return
+            
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
@@ -177,6 +189,10 @@ class OrganoidCounterWidget(QWidget):
         # Key binding to reset the edge_color of selected bounding boxes to their original color
         @self.viewer.bind_key('z')
         def reset_edge_color(viewer: napari.Viewer):
+            if self.single_annotation_mode:  # Check if single-annotation mode is active
+                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+                return
+            
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
@@ -486,6 +502,17 @@ class OrganoidCounterWidget(QWidget):
         name,_ = fd.getSaveFileName(self, 'Save File', potential_name, 'Image files (*.png);;(*.tiff)') #, 'CSV Files (*.csv)')
         if name: imsave(name, screenshot)
 
+    def on_annotation_mode_changed(self, index):
+        """Callback for dropdown selection."""
+        if index == 0:  # Single Annotation
+            self.multi_annotation_mode = False
+            self.single_annotation_mode = True
+            print("Switched to Single Annotation mode.")
+        elif index == 1:  # Multi Annotation
+            self.multi_annotation_mode = True
+            self.single_annotation_mode = False
+            print("Switched to Multi Annotation mode.")
+
     def _on_save_csv_click(self): 
         """ Is called whenever Save features button is clicked """
         bboxes = self.viewer.layers[self.save_layer_name].data
@@ -503,15 +530,20 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever Save boxes button is clicked """
         bboxes = self.viewer.layers[self.save_layer_name].data
         #scores = #add
-        if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
-        else:
+        if not bboxes: 
+            show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
+            return
+        
+        # Check for multi-annotation mode
+        if self.multi_annotation_mode:
+
             # Get the edge colors for all bounding boxes
             edge_colors = self.cur_shapes_layer.edge_color
             labels = []
 
             # Check if all bounding boxes have their edge color set (not green or blue)
             green = np.array([85/255, 1., 0, 1.])
-            blue = np.array([29/255, 0, 1., 1.])
+            blue = np.array([0, 29/255, 1., 1.])
 
             all_colored = True
             for edge_color in edge_colors:
@@ -533,17 +565,21 @@ class OrganoidCounterWidget(QWidget):
                 else:
                     labels.append(-1)  # Label for other colors
 
-            data_json = utils.get_bboxes_as_dict(bboxes, 
-                                        self.viewer.layers[self.save_layer_name].properties['box_id'],
-                                        self.viewer.layers[self.save_layer_name].properties['scores'],
-                                        self.viewer.layers[self.save_layer_name].scale,
-                                        labels=labels)
+        elif self.single_annotation_mode:
+            # Single annotation mode: all bounding boxes get a default label
+            labels = [0] * len(bboxes)  # Default label for single annotation mode
+
+        data_json = utils.get_bboxes_as_dict(bboxes, 
+                                    self.viewer.layers[self.save_layer_name].properties['box_id'],
+                                    self.viewer.layers[self.save_layer_name].properties['scores'],
+                                    self.viewer.layers[self.save_layer_name].scale,
+                                    labels=labels)
             
         
-            # write bbox coordinates to json
-            fd = QFileDialog()
-            name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
-            if name: utils.write_to_json(name, data_json)
+        # write bbox coordinates to json
+        fd = QFileDialog()
+        name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
+        if name: utils.write_to_json(name, data_json)
 
     def _update_added_image(self, added_items):
         """
@@ -645,6 +681,7 @@ class OrganoidCounterWidget(QWidget):
         window_sizes_box = self._setup_window_sizes_box()
         downsampling_box = self._setup_downsampling_box()
         run_box = self._setup_run_box()
+        annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single or multi-annotation
         self._setup_progress_box()
 
         # and add all these to the layout
@@ -655,6 +692,7 @@ class OrganoidCounterWidget(QWidget):
         vbox.addLayout(window_sizes_box)
         vbox.addLayout(downsampling_box)
         vbox.addLayout(run_box)
+        vbox.addLayout(annotation_mode_box)  # Add the annotation dropdown
         vbox.addWidget(self.progress_box)
         input_widget.setLayout(vbox)
         return input_widget
@@ -796,6 +834,24 @@ class OrganoidCounterWidget(QWidget):
         run_btn.setStyleSheet("border: 0px")
         hbox.addWidget(run_btn)
         hbox.addStretch(1)
+        return hbox
+    
+    def _setup_annotation_mode_box(self):
+        """
+        Sets up the GUI part where the annotation mode is selected.
+        """
+        hbox = QHBoxLayout()
+
+        # Label
+        annotation_mode_label = QLabel("Annotation Mode:", self)
+        hbox.addWidget(annotation_mode_label)
+
+        # Dropdown
+        self.annotation_mode_dropdown = QComboBox()
+        self.annotation_mode_dropdown.addItems(["Single Annotation", "Multi Annotation"])
+        self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
+        hbox.addWidget(self.annotation_mode_dropdown)
+        
         return hbox
 
     def _setup_progress_box(self):
