@@ -38,7 +38,15 @@ def init():
         "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
                     "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
                     }
+
 }
+    
+    # Add color definitions
+    global COLOR_CLASS_1
+    COLOR_CLASS_1 = [85 / 255, 1.0, 0, 1.0]  # Green
+    
+    global COLOR_CLASS_2
+    COLOR_CLASS_2 = [0, 29 / 255, 1.0, 1.0]  # Blue
 
 
 
