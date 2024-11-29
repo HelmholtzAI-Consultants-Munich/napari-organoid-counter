@@ -63,7 +63,7 @@ def write_to_json(name, data):
         json.dump(data, outfile)  
 
 def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
-    """ Write all data, boxes, ids and scores and scale, to a dict so we can later save as a json """
+    """ Write all data, boxes, ids and scores, scale and class label, to a dict so we can later save as a json """
     data_json = {} 
     for idx, bbox in enumerate(bboxes):
         x1, y1 = bbox[0]

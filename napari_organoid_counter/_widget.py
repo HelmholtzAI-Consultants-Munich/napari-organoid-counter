@@ -6,7 +6,7 @@ from datetime import datetime
 import napari
 
 from napari import layers
-from napari.utils.notifications import show_info
+from napari.utils.notifications import show_info, show_error, show_warning
 
 import numpy as np
 
@@ -101,7 +101,7 @@ class OrganoidCounterWidget(QWidget):
 
         # Initialize multi_annotation_mode to False by default
         self.multi_annotation_mode = False
-        self.single_annotation_mode = True  # Initially, it's single annotation mode
+        # self.single_annotation_mode = True  # Initially, it's single annotation mode
 
         # setup gui        
         self.setLayout(QVBoxLayout())
@@ -125,92 +125,78 @@ class OrganoidCounterWidget(QWidget):
         self.diameter_slider_changed = False 
         self.confidence_slider_changed = False
 
-        # Key binding to return the ID of the bounding boxes selected from the GUI
-        @self.viewer.bind_key('s')
-        def selected_boxes(viewer: napari.Viewer):
-            if self.cur_shapes_layer is not None:  # Check if there is a valid shapes layer selected
-                selected_shapes = self.cur_shapes_layer.selected_data
-                print(f"Selected shapes indices: {selected_shapes}")
-
-        # Dictionary where key are shape indices and values are RGBA colors
-        self.original_colors = {}
-
         # Key binding to change the edge_color of the bounding boxes to green
         @self.viewer.bind_key('g')
         def change_edge_color_to_green(viewer: napari.Viewer):
-            if self.single_annotation_mode:  # Check if single-annotation mode is active
-                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
+                show_error("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
                 return
-            
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data # Retrieves indices of shapes currently selected, returns a set 
                 if len(selected_shapes) > 0:
-                    # Set the edge color of selected shapes to green
-                    new_edge_color = [85/255, 1., 0, 1.]  # RGBA for green
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color 
+                    changed_indices = []  # To collect all changed indices
                     for idx in selected_shapes:
                         # Save original color
-                        if idx not in self.original_colors: 
-                            self.original_colors[idx] = current_edge_colors[idx].copy()
+                        # if idx not in self.original_colors: 
+                            # self.original_colors[idx] = current_edge_colors[idx].copy()
                         # Update to the new color
-                        current_edge_colors[idx] = new_edge_color
-
+                        current_edge_colors[idx] = settings.COLOR_CLASS_1
+                        changed_indices.append(idx)  # Add the index to the list
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    print(f"Changed edge color of {idx} to {new_edge_color}")
+                    show_info(f"Changed edge color of shapes {changed_indices} to green.")
                 else:
-                    print("No shapes selected to change edge color.")
+                    show_warning("No shapes selected to change edge color.")
 
         # Key binding to change the edge_color of the bounding boxes to blue
         @self.viewer.bind_key('h')
         def change_edge_color_to_blue(viewer: napari.Viewer):
-            if self.single_annotation_mode:  # Check if single-annotation mode is active
-                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
-                return
-            
+            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
+                show_error("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+                return         
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
-                    # Set the edge color of selected shapes to green
-                    new_edge_color = [0, 29/255, 1., 1.]  # RGBA for blue
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color
+                    changed_indices = [] # To collect all changed indices
                     for idx in selected_shapes:
                         # Save original color
-                        if idx not in self.original_colors: 
-                            self.original_colors[idx] = current_edge_colors[idx].copy()
+                        # if idx not in self.original_colors: 
+                            # self.original_colors[idx] = current_edge_colors[idx].copy()
                         # Update to the new color
-                        current_edge_colors[idx] = new_edge_color
+                        current_edge_colors[idx] = settings.COLOR_CLASS_2
+                        changed_indices.append(idx)  # Add the index to the list
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    print(f"Changed edge color of {idx} to {new_edge_color}")
+                    show_info(f"Changed edge color of {changed_indices} to blue.")
                 else:
-                    print("No shapes selected to change edge color.")
+                    show_warning("No shapes selected to change edge color.")
 
-        # Key binding to reset the edge_color of selected bounding boxes to their original color
-        @self.viewer.bind_key('z')
-        def reset_edge_color(viewer: napari.Viewer):
-            if self.single_annotation_mode:  # Check if single-annotation mode is active
+        # Key binding to reset the edge_color of selected bounding boxes to the original magenta color
+        @self.viewer.bind_key('m')
+        def change_to_original_color(viewer: napari.Viewer):
+            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
                 show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
                 return
-            
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
                     current_edge_colors = self.cur_shapes_layer.edge_color
-
+                    # Set the edge color back to magenta 
+                    new_edge_color = [1., 0, 1., 1.]  # RGBA for magenta
+                    # Modify the edge color only for the selected shapes
+                    current_edge_colors = self.cur_shapes_layer.edge_color
+                    changed_indices = [] # To collect all changed indices
                     for idx in selected_shapes:
-                        if idx in self.original_colors:
+                        # if idx in self.original_colors:
                             # Revert to the original color
-                            current_edge_colors[idx] = self.original_colors[idx]
-                            # Remove from the dictionary after reverting
-                            del self.original_colors[idx]
-                        else:
-                            print(f"No original color stored for shape {idx}, skipping reset.")
-
+                            current_edge_colors[idx] = new_edge_color
+                            changed_indices.append(idx)  # Add the index to the list
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    print(f"Reset edge color of {idx} to their original color.")
+                    show_info(f"Reset edge color of {changed_indices} to magenta.")
                 else:
-                    print("No shapes selected to reset edge color.")
+                    show_warning("No shapes selected to reset edge color.")
 
 
     def handle_progress(self, blocknum, blocksize, totalsize):
@@ -506,12 +492,12 @@ class OrganoidCounterWidget(QWidget):
         """Callback for dropdown selection."""
         if index == 0:  # Single Annotation
             self.multi_annotation_mode = False
-            self.single_annotation_mode = True
-            print("Switched to Single Annotation mode.")
+            # self.single_annotation_mode = True
+            show_info("Switched to Single Annotation mode.")
         elif index == 1:  # Multi Annotation
             self.multi_annotation_mode = True
-            self.single_annotation_mode = False
-            print("Switched to Multi Annotation mode.")
+            # self.single_annotation_mode = False
+            show_info("Switched to Multi Annotation mode.")
 
     def _on_save_csv_click(self): 
         """ Is called whenever Save features button is clicked """
@@ -542,8 +528,8 @@ class OrganoidCounterWidget(QWidget):
             labels = []
 
             # Check if all bounding boxes have their edge color set (not green or blue)
-            green = np.array([85/255, 1., 0, 1.])
-            blue = np.array([0, 29/255, 1., 1.])
+            green = np.array(settings.COLOR_CLASS_1)
+            blue = np.array(settings.COLOR_CLASS_2)
 
             all_colored = True
             for edge_color in edge_colors:
@@ -553,19 +539,20 @@ class OrganoidCounterWidget(QWidget):
                     break
 
             if not all_colored:
-                show_info('Please change the color of all bounding boxes before saving.')
+                show_error('Please change the color of all bounding boxes before saving.')
                 return
             
             # Assign organoid label based on edge_color
             for edge_color in edge_colors:
                 if np.allclose(edge_color[:3], green[:3]):
-                    labels.append(0)  # Label for green
+                    labels.append(1)  # Label for green
                 elif np.allclose(edge_color[:3], blue[:3]):
-                    labels.append(1)  # Label for blue
+                    labels.append(2)  # Label for blue
                 else:
-                    labels.append(-1)  # Label for other colors
+                    raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
 
-        elif self.single_annotation_mode:
+        #elif self.single_annotation_mode:
+        else:
             # Single annotation mode: all bounding boxes get a default label
             labels = [0] * len(bboxes)  # Default label for single annotation mode
 
