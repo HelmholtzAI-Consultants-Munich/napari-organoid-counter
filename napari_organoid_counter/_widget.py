@@ -136,16 +136,14 @@ class OrganoidCounterWidget(QWidget):
                 if len(selected_shapes) > 0:
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color 
-                    changed_indices = []  # To collect all changed indices
                     for idx in selected_shapes:
                         # Save original color
                         # if idx not in self.original_colors: 
                             # self.original_colors[idx] = current_edge_colors[idx].copy()
                         # Update to the new color
                         current_edge_colors[idx] = settings.COLOR_CLASS_1
-                        changed_indices.append(idx)  # Add the index to the list
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    show_info(f"Changed edge color of shapes {changed_indices} to green.")
+                    show_info(f"Changed edge color of shapes {list(selected_shapes)} to green.")
                 else:
                     show_warning("No shapes selected to change edge color.")
 
@@ -160,16 +158,14 @@ class OrganoidCounterWidget(QWidget):
                 if len(selected_shapes) > 0:
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color
-                    changed_indices = [] # To collect all changed indices
                     for idx in selected_shapes:
                         # Save original color
                         # if idx not in self.original_colors: 
                             # self.original_colors[idx] = current_edge_colors[idx].copy()
                         # Update to the new color
                         current_edge_colors[idx] = settings.COLOR_CLASS_2
-                        changed_indices.append(idx)  # Add the index to the list
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    show_info(f"Changed edge color of {changed_indices} to blue.")
+                    show_info(f"Changed edge color of {list(selected_shapes)} to blue.")
                 else:
                     show_warning("No shapes selected to change edge color.")
 
@@ -183,18 +179,14 @@ class OrganoidCounterWidget(QWidget):
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
                     current_edge_colors = self.cur_shapes_layer.edge_color
-                    # Set the edge color back to magenta 
-                    new_edge_color = [1., 0, 1., 1.]  # RGBA for magenta
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color
-                    changed_indices = [] # To collect all changed indices
                     for idx in selected_shapes:
                         # if idx in self.original_colors:
                             # Revert to the original color
-                            current_edge_colors[idx] = new_edge_color
-                            changed_indices.append(idx)  # Add the index to the list
+                            current_edge_colors[idx] = settings.COLOR_DEFAULT
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    show_info(f"Reset edge color of {changed_indices} to magenta.")
+                    show_info(f"Reset edge color of {list(selected_shapes)} to magenta.")
                 else:
                     show_warning("No shapes selected to reset edge color.")
 
@@ -295,7 +287,7 @@ class OrganoidCounterWidget(QWidget):
                                                                face_color='transparent',  
                                                                properties = properties,
                                                                text = text_params,
-                                                               edge_color='magenta',
+                                                               edge_color=settings.COLOR_DEFAULT,
                                                                shape_type='rectangle',
                                                                edge_width=12) # warning generated here
                             
