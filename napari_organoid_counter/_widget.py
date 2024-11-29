@@ -537,9 +537,9 @@ class OrganoidCounterWidget(QWidget):
             # Assign organoid label based on edge_color
             for edge_color in edge_colors:
                 if np.allclose(edge_color[:3], green[:3]):
-                    labels.append(1)  # Label for green
+                    labels.append(0)  # Label for green
                 elif np.allclose(edge_color[:3], blue[:3]):
-                    labels.append(2)  # Label for blue
+                    labels.append(1)  # Label for blue
                 else:
                     raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
 
