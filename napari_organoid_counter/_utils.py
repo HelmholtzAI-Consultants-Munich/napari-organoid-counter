@@ -62,12 +62,13 @@ def write_to_json(name, data):
     with open(name, 'w') as outfile:
         json.dump(data, outfile)  
 
-def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales):
-    """ Write all data, boxes, ids and scores and scale, to a dict so we can later save as a json """
+def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
+    """ Write all data, boxes, ids and scores, scale and class label, to a dict so we can later save as a json """
     data_json = {} 
     for idx, bbox in enumerate(bboxes):
         x1, y1 = bbox[0]
         x2, y2 = bbox[2]
+
         data_json.update({str(bbox_ids[idx]): {'box_id': str(bbox_ids[idx]),
                                                 'x1': str(x1),
                                                 'x2': str(x2),
@@ -75,7 +76,8 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales):
                                                 'y2': str(y2),
                                                 'confidence': str(scores[idx]),
                                                 'scale_x': str(scales[0]),
-                                                'scale_y': str(scales[1])
+                                                'scale_y': str(scales[1]),
+                                                'class': labels[idx]
                                                 }
                         })
     return data_json
