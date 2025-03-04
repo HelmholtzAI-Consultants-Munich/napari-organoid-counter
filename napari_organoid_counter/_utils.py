@@ -124,7 +124,7 @@ def prepare_img(test_img, step, window_size, rescale_factor):
     
     return test_img, img_height, img_width
 
-def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
+def apply_nms(bbox_preds, scores_preds, labels_preds, iou_thresh=0.5):
     """ Function applies non max suppression to iteratively remove lower scoring boxes which have an IoU greater than iou_threshold 
     with another (higher scoring) box. The boxes and corresponding scores whihc remain are returned. """
     # torchvision returns the indices of the bboxes to keep
@@ -132,7 +132,8 @@ def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
     # filter existing boxes and scores and return
     bbox_preds_kept = bbox_preds[keep]
     scores_preds = scores_preds[keep]
-    return bbox_preds_kept, scores_preds
+    labels_preds = labels_preds[keep]
+    return bbox_preds_kept, scores_preds, labels_preds
 
 def convert_boxes_to_napari_view(pred_bboxes):
     """ The bboxes are converted from tensors in model output form to a form which can be visualised in the napari viewer """
