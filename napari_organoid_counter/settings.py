@@ -16,6 +16,9 @@ def init():
         "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
                     "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
                     },
+        "multi-class": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
+                        "source": "https://zenodo.org/records/14900559/files/best_coco_bbox_mAP_epoch_2.pth"
+                        }
     }
     
     global MODELS_DIR
@@ -37,8 +40,10 @@ def init():
                 },
         "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
                     "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
-                    }
-
+                    },
+        "multi-class": {"source": "https://zenodo.org/records/14900559/files/yolov3_416_organoid_two_class.py",
+                        "destination": ".mim/configs/yolo/yolov3_416_organoid_two_class.py"
+                        }
 }
     
     # Add color definitions
