@@ -101,6 +101,7 @@ class OrganoidCounterWidget(QWidget):
 
         # Initialize multi_annotation_mode to False by default
         self.multi_annotation_mode = False
+        self.multi_class_annotation_mode = False
         # self.single_annotation_mode = True  # Initially, it's single annotation mode
 
         # setup gui        
@@ -128,8 +129,8 @@ class OrganoidCounterWidget(QWidget):
         # Key binding to change the edge_color of the bounding boxes to green
         @self.viewer.bind_key('g')
         def change_edge_color_to_green(viewer: napari.Viewer):
-            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
-                show_error("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+            if not (self.multi_annotation_mode or self.multi_class_annotation_mode):  # Check if single-annotation mode is active
+                show_error("Cannot change edge color. Change to multi-annotation or multi-class annotation mode to enable this feature.")
                 return
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data # Retrieves indices of shapes currently selected, returns a set 
@@ -150,8 +151,8 @@ class OrganoidCounterWidget(QWidget):
         # Key binding to change the edge_color of the bounding boxes to blue
         @self.viewer.bind_key('h')
         def change_edge_color_to_blue(viewer: napari.Viewer):
-            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
-                show_error("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
+            if not (self.multi_annotation_mode or self.multi_class_annotation_mode):  # Check if single-annotation mode is active
+                show_error("Cannot change edge color. Change to multi-annotation or multi-class annotation mode to enable this feature.")
                 return         
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
@@ -259,13 +260,31 @@ class OrganoidCounterWidget(QWidget):
         new_text = 'Number of organoids: '+str(self.num_organoids)
         self.organoid_number_label.setText(new_text)
 
-    def _update_vis_bboxes(self, bboxes, scores, box_ids, labels_layer_name):
+    def _update_vis_bboxes(self, bboxes, scores, labels, box_ids, labels_layer_name):
         """ Adds the shapes layer to the viewer or updates it if already there """
         self._update_num_organoids(len(bboxes))
+
+        # Convert PyTorch tensors to lists (if they are tensors)
+        if hasattr(scores, "tolist"):
+            scores = scores.tolist()
+        if hasattr(labels, "tolist"):
+            labels = labels.tolist()
+        
+        # Default to magenta for single-class model
+        edge_color = settings.COLOR_DEFAULT
+
+        # Check if we are running the multi-class model
+        if self.model_name == "multi-class":
+            edge_color = np.array([
+                settings.COLOR_CLASS_1 if label == 0 else settings.COLOR_CLASS_2 
+                for label in labels
+            ])
+
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
             self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
-            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores}
+            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
+            self.viewer.layers[labels_layer_name].edge_color = edge_color
             self.viewer.layers[labels_layer_name].edge_width = 12
             self.viewer.layers[labels_layer_name].refresh()
             self.viewer.layers[labels_layer_name].refresh_text()
@@ -274,12 +293,12 @@ class OrganoidCounterWidget(QWidget):
             # if no organoids were found just make an empty shapes layer
             if self.num_organoids==0: 
                 self.cur_shapes_layer = self.viewer.add_shapes(name=labels_layer_name,
-                                                               properties={'box_id': [],'scores': []})
+                                                               properties={'box_id': [],'scores': [], 'labels': []})
             # otherwise make the layer and add the boxes
             else:
-                properties = {'box_id': box_ids,'scores': scores}
-                text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}',
-                               'size': 12,
+                properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
+                text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}\nLabel: {labels: .0f}',
+                               'size': 9,
                                'anchor': 'upper_left',}
                 self.cur_shapes_layer = self.viewer.add_shapes(bboxes, 
                                                                name=labels_layer_name,
@@ -287,7 +306,7 @@ class OrganoidCounterWidget(QWidget):
                                                                face_color='transparent',  
                                                                properties = properties,
                                                                text = text_params,
-                                                               edge_color=settings.COLOR_DEFAULT,
+                                                               edge_color=edge_color,
                                                                shape_type='rectangle',
                                                                edge_width=12) # warning generated here
                             
@@ -302,6 +321,9 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
+        if self.model_name == 'multi-class' and not self.multi_class_annotation_mode:
+            show_error("Please switch to Multi-Class Annotation mode to use the multi-class model.")
+            return
         # check if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
@@ -352,11 +374,11 @@ class OrganoidCounterWidget(QWidget):
                            self.window_overlap)
         
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
-        bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
+        bboxes, scores, labels, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
         # hide activcity dock on completion
         self.viewer.window._status_bar._toggle_activity_dock(False)
         # update widget with results
-        self._update_vis_bboxes(bboxes, scores, box_ids, labels_layer_name)
+        self._update_vis_bboxes(bboxes, scores, labels, box_ids, labels_layer_name)
         # and update cur_shapes_name to newly created shapes layer
         self.cur_shapes_name = labels_layer_name
         # preprocess the image if not done so already to improve visualisation
@@ -490,6 +512,11 @@ class OrganoidCounterWidget(QWidget):
             self.multi_annotation_mode = True
             # self.single_annotation_mode = False
             show_info("Switched to Multi Annotation mode.")
+        elif index == 2: # MultiClass Annotation
+            self.multi_annotation_mode = False
+            self.multi_class_annotation_mode = True
+            # self.single_annotation_mode = False
+            show_info("Switched to Multi-Class Annotation mode.")
 
     def _on_save_csv_click(self): 
         """ Is called whenever Save features button is clicked """
@@ -513,7 +540,7 @@ class OrganoidCounterWidget(QWidget):
             return
         
         # Check for multi-annotation mode
-        if self.multi_annotation_mode:
+        if self.multi_annotation_mode or self.multi_class_annotation_mode:
 
             # Get the edge colors for all bounding boxes
             edge_colors = self.cur_shapes_layer.edge_color
@@ -660,7 +687,7 @@ class OrganoidCounterWidget(QWidget):
         window_sizes_box = self._setup_window_sizes_box()
         downsampling_box = self._setup_downsampling_box()
         run_box = self._setup_run_box()
-        annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single or multi-annotation
+        annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single, multi-annotation or multi-class annotation
         self._setup_progress_box()
 
         # and add all these to the layout
@@ -827,7 +854,7 @@ class OrganoidCounterWidget(QWidget):
 
         # Dropdown
         self.annotation_mode_dropdown = QComboBox()
-        self.annotation_mode_dropdown.addItems(["Single Annotation", "Multi Annotation"])
+        self.annotation_mode_dropdown.addItems(["Single Annotation", "Multi Annotation", "Multi-Class Annotation"])
         self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
         hbox.addWidget(self.annotation_mode_dropdown)
         
