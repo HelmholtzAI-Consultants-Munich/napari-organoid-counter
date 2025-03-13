@@ -116,6 +116,20 @@ class OrganoidCounterWidget(QWidget):
             9: {"name": "10 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
         }
 
+        # Mapping class numbers to colors
+        self.color_mapping = {
+            0: (settings.COLOR_CLASS_0, "Green"),
+            1: (settings.COLOR_CLASS_1, "Blue"),
+            2: (settings.COLOR_CLASS_2, "Orange"),
+            3: (settings.COLOR_CLASS_3, "Purple"),
+            4: (settings.COLOR_CLASS_4, "Cyan"),
+            5: (settings.COLOR_CLASS_5, "Red"),
+            6: (settings.COLOR_CLASS_6, "Brown"),
+            7: (settings.COLOR_CLASS_7, "Pink"),
+            8: (settings.COLOR_CLASS_8, "Yellow"),
+            9: (settings.COLOR_CLASS_9, "Light Blue")
+        }
+
         self.selected_classes = set() # Set of currently active classes for annotation
 
         # setup gui        
@@ -167,6 +181,7 @@ class OrganoidCounterWidget(QWidget):
                 self.viewer.keymap.pop(key) # Remove the key binding if it already exists
 
         # Bind all keys and validate them on press
+        bound_keys = []
         for class_num in range(10):
             key = f'Control-{class_num}'
             
@@ -180,7 +195,7 @@ class OrganoidCounterWidget(QWidget):
                 
                 # Ensure we are NOT in detection-only mode
                 if self.annotation_mode == 0:
-                    show_warning(f"Cannot change edge color in Detection Only mode.")
+                    show_warning(f"Cannot change class in Detection Only annotation mode.")
                     return
                 
                 # Proceed with the color change if valid
@@ -198,35 +213,30 @@ class OrganoidCounterWidget(QWidget):
                 # Suppress message if in detection-only mode
                 if self.annotation_mode == 0:
                     return
-                show_info(f"Use {key} to change edge color to class {class_num}.")
+                bound_keys.append(f"{key} to change to class {class_num}")
+            # Display a dynamic message showing all valid key bindings
+        if bound_keys:
+            mode_name = self.annotation_mode_mapping[self.annotation_mode]["name"]
+            binding_message = ", ".join(bound_keys)
+            show_info(f"Switched to {mode_name} annotation mode. Use {binding_message}.")
+
+            #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode. Use ")
+            #show_info(f"Use {key} to change edge color to class {class_num}.")
            
     def change_edge_color(self, viewer: napari.Viewer, selected_shapes, class_num):
         """Change the edge color of selected shapes based on the class number."""
-        
-        color_mapping = {
-            0: (settings.COLOR_CLASS_0, "Green"),
-            1: (settings.COLOR_CLASS_1, "Blue"),
-            2: (settings.COLOR_CLASS_2, "Orange"),
-            3: (settings.COLOR_CLASS_3, "Purple"),
-            4: (settings.COLOR_CLASS_4, "Cyan"),
-            5: (settings.COLOR_CLASS_5, "Red"),
-            6: (settings.COLOR_CLASS_6, "Brown"),
-            7: (settings.COLOR_CLASS_7, "Pink"),
-            8: (settings.COLOR_CLASS_8, "Yellow"),
-            9: (settings.COLOR_CLASS_9, "Light Blue")
-        }
 
         # Check if the class_num is valid in the mapping
-        if class_num in color_mapping:
+        if class_num in self.color_mapping:
             current_edge_colors = self.cur_shapes_layer.edge_color
 
             # Update the edge color for the selected shapes
             for idx in selected_shapes:
-                current_edge_colors[idx] = color_mapping[class_num][0] # Set RGBA color
+                current_edge_colors[idx] = self.color_mapping[class_num][0] # Set RGBA color
 
             # Apply the updated colors back to the layer
             self.cur_shapes_layer.edge_color = current_edge_colors
-            show_info(f"Changed edge color of shapes {list(selected_shapes)} to {color_mapping[class_num][1]}.") # Print color name
+            show_info(f"Changed edge color of shapes {list(selected_shapes)} to {self.color_mapping[class_num][1]}.") # Print color name
         else:
             show_warning(f"Class {class_num} has no associated color.")  
 
@@ -325,14 +335,14 @@ class OrganoidCounterWidget(QWidget):
         text_params = None
         if not is_detection_only:
             text_params = {
-                'string': 'ID: {box_id}\nConf.: {scores:.2f}\nLabel: {labels: .0f}',
+                'string': 'Conf.: {scores:.2f}\nLabel: {labels: .0f}',
                 'size': 9,
                 'anchor': 'upper_left',
             }
         else:
             # For detection-only models, do not include the label in the text
             text_params = {
-                'string': 'ID: {box_id}\nConf.: {scores:.2f}',  # Exclude Label
+                'string': 'Conf.: {scores:.2f}',  # Exclude Label
                 'size': 9,
                 'anchor': 'upper_left',
             }
@@ -564,7 +574,7 @@ class OrganoidCounterWidget(QWidget):
         """Callback for dropdown selection."""
         self.annotation_mode = mode
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
-        show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
+        #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
 
     def _on_save_csv_click(self): 
@@ -599,12 +609,7 @@ class OrganoidCounterWidget(QWidget):
 
             # Get valid classes and colors from annotation_mode_mapping
             valid_classes = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
-            valid_colors = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("colors", [])
-
-            # If no valid classes/colors are defined for this mode, show an error and return
-            if not valid_classes or not valid_colors:
-                show_error(f"No valid classes or colors found for annotation mode {self.annotation_mode}.")
-                return
+            valid_colors = [self.color_mapping[class_num][0] for class_num in valid_classes]
             
             # Get the edge colors for all bounding boxes
             edge_colors = self.cur_shapes_layer.edge_color
