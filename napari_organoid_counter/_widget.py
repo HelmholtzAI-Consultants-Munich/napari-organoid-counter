@@ -99,10 +99,24 @@ class OrganoidCounterWidget(QWidget):
         self.stored_confidences = {}
         self.stored_diameters = {}
 
-        # Initialize multi_annotation_mode to False by default
-        self.multi_annotation_mode = False
-        self.multi_class_annotation_mode = False
-        # self.single_annotation_mode = True  # Initially, it's single annotation mode
+        # Annotation Mode 
+        self.annotation_mode = 0 # Default to Detection Only mode (0)
+
+        # Mapping annotation modes to number of classes
+        self.annotation_mode_mapping = {
+            0: {"name": "Detection Only", "classes": {0}},
+            1: {"name": "Binary Classification", "classes": {0, 1}},
+            2: {"name": "3 Classes", "classes": {0, 1, 2}},
+            3: {"name": "4 Classes", "classes": {0, 1, 2, 3}},
+            4: {"name": "5 Classes", "classes": {0, 1, 2, 3, 4}},
+            5: {"name": "6 Classes", "classes": {0, 1, 2, 3, 4, 5}},
+            6: {"name": "7 Classes", "classes": {0, 1, 2, 3, 4, 5, 6}},
+            7: {"name": "8 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7}},
+            8: {"name": "9 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7, 8}},
+            9: {"name": "10 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
+        }
+
+        self.selected_classes = set() # Set of currently active classes for annotation
 
         # setup gui        
         self.setLayout(QVBoxLayout())
@@ -126,56 +140,9 @@ class OrganoidCounterWidget(QWidget):
         self.diameter_slider_changed = False 
         self.confidence_slider_changed = False
 
-        # Key binding to change the edge_color of the bounding boxes to green
-        @self.viewer.bind_key('g')
-        def change_edge_color_to_green(viewer: napari.Viewer):
-            if not (self.multi_annotation_mode or self.multi_class_annotation_mode):  # Check if single-annotation mode is active
-                show_error("Cannot change edge color. Change to multi-annotation or multi-class annotation mode to enable this feature.")
-                return
-            if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
-                selected_shapes = self.cur_shapes_layer.selected_data # Retrieves indices of shapes currently selected, returns a set 
-                if len(selected_shapes) > 0:
-                    # Modify the edge color only for the selected shapes
-                    current_edge_colors = self.cur_shapes_layer.edge_color 
-                    for idx in selected_shapes:
-                        # Save original color
-                        # if idx not in self.original_colors: 
-                            # self.original_colors[idx] = current_edge_colors[idx].copy()
-                        # Update to the new color
-                        current_edge_colors[idx] = settings.COLOR_CLASS_1
-                    self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    show_info(f"Changed edge color of shapes {list(selected_shapes)} to green.")
-                else:
-                    show_warning("No shapes selected to change edge color.")
-
-        # Key binding to change the edge_color of the bounding boxes to blue
-        @self.viewer.bind_key('h')
-        def change_edge_color_to_blue(viewer: napari.Viewer):
-            if not (self.multi_annotation_mode or self.multi_class_annotation_mode):  # Check if single-annotation mode is active
-                show_error("Cannot change edge color. Change to multi-annotation or multi-class annotation mode to enable this feature.")
-                return         
-            if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
-                selected_shapes = self.cur_shapes_layer.selected_data
-                if len(selected_shapes) > 0:
-                    # Modify the edge color only for the selected shapes
-                    current_edge_colors = self.cur_shapes_layer.edge_color
-                    for idx in selected_shapes:
-                        # Save original color
-                        # if idx not in self.original_colors: 
-                            # self.original_colors[idx] = current_edge_colors[idx].copy()
-                        # Update to the new color
-                        current_edge_colors[idx] = settings.COLOR_CLASS_2
-                    self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
-                    show_info(f"Changed edge color of {list(selected_shapes)} to blue.")
-                else:
-                    show_warning("No shapes selected to change edge color.")
-
         # Key binding to reset the edge_color of selected bounding boxes to the original magenta color
         @self.viewer.bind_key('m')
         def change_to_original_color(viewer: napari.Viewer):
-            if not self.multi_annotation_mode:  # Check if single-annotation mode is active
-                show_info("Cannot change edge color. Change to multi-annotation mode to enable this feature.")
-                return
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
@@ -183,14 +150,85 @@ class OrganoidCounterWidget(QWidget):
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color
                     for idx in selected_shapes:
-                        # if idx in self.original_colors:
-                            # Revert to the original color
-                            current_edge_colors[idx] = settings.COLOR_DEFAULT
+                        # Revert to the original color
+                        current_edge_colors[idx] = settings.COLOR_DEFAULT
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
                     show_info(f"Reset edge color of {list(selected_shapes)} to magenta.")
                 else:
                     show_warning("No shapes selected to reset edge color.")
 
+    def update_key_bindings(self):
+        """ Update key bindings based on selected classes """            
+
+        # Unbind all potential class keys (CTRL+0 to CTRL+9)
+        for class_num in range(10):
+            key = f'Control-{class_num}'
+            if key in self.viewer.keymap:
+                self.viewer.keymap.pop(key) # Remove the key binding if it already exists
+
+        # Bind all keys and validate them on press
+        for class_num in range(10):
+            key = f'Control-{class_num}'
+            
+            # Capture 'class_num' using a lambda default argument
+            @self.viewer.bind_key(key, overwrite=True)
+            def change_color_for_class(viewer: napari.Viewer, class_num=class_num):
+                # Check if the class is valid for the current annotation mode
+                if class_num not in self.selected_classes:
+                    show_warning(f"Class {class_num} is not available in the current annotation mode.")
+                    return
+                
+                # Ensure we are NOT in detection-only mode
+                if self.annotation_mode == 0:
+                    show_warning(f"Cannot change edge color in Detection Only mode.")
+                    return
+                
+                # Proceed with the color change if valid
+                if self.cur_shapes_layer:
+                    selected_shapes = self.cur_shapes_layer.selected_data
+                    if selected_shapes:
+                        self.change_edge_color(viewer, selected_shapes, class_num)
+                    else:
+                        show_warning("No shapes selected to change edge color.")
+                else:
+                    show_warning("No active shapes layer available.")
+
+            # Confirm valid key bindings
+            if class_num in self.selected_classes:
+                # Suppress message if in detection-only mode
+                if self.annotation_mode == 0:
+                    return
+                show_info(f"Use {key} to change edge color to class {class_num}.")
+           
+    def change_edge_color(self, viewer: napari.Viewer, selected_shapes, class_num):
+        """Change the edge color of selected shapes based on the class number."""
+        
+        color_mapping = {
+            0: (settings.COLOR_CLASS_0, "Green"),
+            1: (settings.COLOR_CLASS_1, "Blue"),
+            2: (settings.COLOR_CLASS_2, "Orange"),
+            3: (settings.COLOR_CLASS_3, "Purple"),
+            4: (settings.COLOR_CLASS_4, "Cyan"),
+            5: (settings.COLOR_CLASS_5, "Red"),
+            6: (settings.COLOR_CLASS_6, "Brown"),
+            7: (settings.COLOR_CLASS_7, "Pink"),
+            8: (settings.COLOR_CLASS_8, "Yellow"),
+            9: (settings.COLOR_CLASS_9, "Light Blue")
+        }
+
+        # Check if the class_num is valid in the mapping
+        if class_num in color_mapping:
+            current_edge_colors = self.cur_shapes_layer.edge_color
+
+            # Update the edge color for the selected shapes
+            for idx in selected_shapes:
+                current_edge_colors[idx] = color_mapping[class_num][0] # Set RGBA color
+
+            # Apply the updated colors back to the layer
+            self.cur_shapes_layer.edge_color = current_edge_colors
+            show_info(f"Changed edge color of shapes {list(selected_shapes)} to {color_mapping[class_num][1]}.") # Print color name
+        else:
+            show_warning(f"Class {class_num} has no associated color.")  
 
     def handle_progress(self, blocknum, blocksize, totalsize):
         """ When the model is being downloaded, this method is called and th progress of the download
@@ -270,15 +308,34 @@ class OrganoidCounterWidget(QWidget):
         if hasattr(labels, "tolist"):
             labels = labels.tolist()
         
-        # Default to magenta for single-class model
+        # Default to magenta for detection only models
         edge_color = settings.COLOR_DEFAULT
 
-        # Check if we are running the multi-class model
-        if self.model_name == "multi-class":
+        # Check if we are running the binary classification model
+        if self.model_name == "Binary Classification":
             edge_color = np.array([
-                settings.COLOR_CLASS_1 if label == 0 else settings.COLOR_CLASS_2 
+                settings.COLOR_CLASS_0 if label == 0 else settings.COLOR_CLASS_1
                 for label in labels
             ])
+        
+        # Determine if this is a detection-only model
+        is_detection_only = self.model_name in ["faster r-cnn (DO)", "ssd (DO)", "yolov3 (DO)", "rtmdet (DO)"]
+
+        # Text parameters (used only if it's not a detection-only model)
+        text_params = None
+        if not is_detection_only:
+            text_params = {
+                'string': 'ID: {box_id}\nConf.: {scores:.2f}\nLabel: {labels: .0f}',
+                'size': 9,
+                'anchor': 'upper_left',
+            }
+        else:
+            # For detection-only models, do not include the label in the text
+            text_params = {
+                'string': 'ID: {box_id}\nConf.: {scores:.2f}',  # Exclude Label
+                'size': 9,
+                'anchor': 'upper_left',
+            }
 
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
@@ -297,9 +354,7 @@ class OrganoidCounterWidget(QWidget):
             # otherwise make the layer and add the boxes
             else:
                 properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
-                text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}\nLabel: {labels: .0f}',
-                               'size': 9,
-                               'anchor': 'upper_left',}
+                text_params = text_params
                 self.cur_shapes_layer = self.viewer.add_shapes(bboxes, 
                                                                name=labels_layer_name,
                                                                scale=self.viewer.layers[self.image_layer_name].scale,
@@ -313,7 +368,6 @@ class OrganoidCounterWidget(QWidget):
             # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
             self.viewer.layers[labels_layer_name].current_edge_width = 12
             
-
     def _on_preprocess_click(self):
         """ Is called whenever preprocess button is clicked """
         if not self.image_layer_name: show_info('Please load an image first and try again!')
@@ -321,9 +375,12 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
-        if self.model_name == 'multi-class' and not self.multi_class_annotation_mode:
-            show_error("Please switch to Multi-Class Annotation mode to use the multi-class model.")
+        # Check if the model is 'Binary Classification' and ensure it's not in 'Detection Only' mode
+        current_annotation_mode = self.annotation_mode
+        if self.model_name == 'Binary Classification' and current_annotation_mode == 0:
+            show_error("Please switch to Binary Classification Annotation mode or use more than 2 classes to use the Binary Classification model.")
             return
+            
         # check if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
@@ -424,10 +481,11 @@ class OrganoidCounterWidget(QWidget):
             self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                                 self.cur_shapes_layer.data, 
                                                 self.cur_shapes_layer.properties['scores'],
+                                                self.cur_shapes_layer.properties['labels'],
                                                 self.cur_shapes_layer.properties['box_id'])
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
-            bboxes, scores, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
-            self._update_vis_bboxes(bboxes, scores, box_ids, self.cur_shapes_name)
+            bboxes, scores, labels, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
+            self._update_vis_bboxes(bboxes, scores, labels, box_ids, self.cur_shapes_name)
 
     def _on_diameter_slider_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
@@ -502,21 +560,12 @@ class OrganoidCounterWidget(QWidget):
         name,_ = fd.getSaveFileName(self, 'Save File', potential_name, 'Image files (*.png);;(*.tiff)') #, 'CSV Files (*.csv)')
         if name: imsave(name, screenshot)
 
-    def on_annotation_mode_changed(self, index):
+    def on_annotation_mode_changed(self, mode):
         """Callback for dropdown selection."""
-        if index == 0:  # Single Annotation
-            self.multi_annotation_mode = False
-            # self.single_annotation_mode = True
-            show_info("Switched to Single Annotation mode.")
-        elif index == 1:  # Multi Annotation
-            self.multi_annotation_mode = True
-            # self.single_annotation_mode = False
-            show_info("Switched to Multi Annotation mode.")
-        elif index == 2: # MultiClass Annotation
-            self.multi_annotation_mode = False
-            self.multi_class_annotation_mode = True
-            # self.single_annotation_mode = False
-            show_info("Switched to Multi-Class Annotation mode.")
+        self.annotation_mode = mode
+        self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
+        show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
+        self.update_key_bindings()  # Update key bindings based on the selected annotation mode
 
     def _on_save_csv_click(self): 
         """ Is called whenever Save features button is clicked """
@@ -539,16 +588,48 @@ class OrganoidCounterWidget(QWidget):
             show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
             return
         
-        # Check for multi-annotation mode
-        if self.multi_annotation_mode or self.multi_class_annotation_mode:
+        labels = []
+        
+        # Check for annotation mode
+        if self.annotation_mode == 0: # Detection Only Mode
+            # Set all labels to None since we don't need them in detection-only mode
+            labels = [None] * len(bboxes)
 
+        else: # For other annotation modes (Binary Classification, 3 classes, 4 classes, etc.)
+
+            # Get valid classes and colors from annotation_mode_mapping
+            valid_classes = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
+            valid_colors = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("colors", [])
+
+            # If no valid classes/colors are defined for this mode, show an error and return
+            if not valid_classes or not valid_colors:
+                show_error(f"No valid classes or colors found for annotation mode {self.annotation_mode}.")
+                return
+            
             # Get the edge colors for all bounding boxes
             edge_colors = self.cur_shapes_layer.edge_color
-            labels = []
-
-            # Check if all bounding boxes have their edge color set (not green or blue)
-            green = np.array(settings.COLOR_CLASS_1)
-            blue = np.array(settings.COLOR_CLASS_2)
+            
+            # Check if all bounding boxes have valid edge colors
+            all_colored = True
+            for edge_color in edge_colors:
+                if not any(np.allclose(edge_color[:3], valid_color[:3]) for valid_color in valid_colors):
+                    all_colored = False
+                    break
+            
+            if not all_colored:
+                show_error('Please change the color of all bounding boxes before saving.')
+                return
+            
+            # Assign organoid label based on edge_color
+            for edge_color in edge_colors:
+                for class_num, valid_color in enumerate(valid_colors):
+                    if np.allclose(edge_color[:3], valid_color[:3]):
+                        labels.append(class_num)
+                        break
+                else:
+                    raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
+        
+        """
 
             all_colored = True
             for edge_color in edge_colors:
@@ -570,10 +651,11 @@ class OrganoidCounterWidget(QWidget):
                 else:
                     raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
 
-        #elif self.single_annotation_mode:
-        else:
-            # Single annotation mode: all bounding boxes get a default label
-            labels = [0] * len(bboxes)  # Default label for single annotation mode
+        else: # Other annotation modes (3 classes, 4 classes, etc.)
+            
+            # Get the edge colors for all bounding boxes
+            edge_colors = self.cur_shapes_layer.edge_color
+        """
 
         data_json = utils.get_bboxes_as_dict(bboxes, 
                                     self.viewer.layers[self.save_layer_name].properties['box_id'],
@@ -626,6 +708,7 @@ class OrganoidCounterWidget(QWidget):
         self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                             self.cur_shapes_layer.data,
                                             self.cur_shapes_layer.properties['scores'],
+                                            self.cur_shapes_layer.properties['labels'],
                                             self.cur_shapes_layer.properties['box_id']
                                             )
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
@@ -849,12 +932,12 @@ class OrganoidCounterWidget(QWidget):
         hbox = QHBoxLayout()
 
         # Label
-        annotation_mode_label = QLabel("Annotation Mode:", self)
+        annotation_mode_label = QLabel("Number of classes to annotate:", self)
         hbox.addWidget(annotation_mode_label)
 
         # Dropdown
         self.annotation_mode_dropdown = QComboBox()
-        self.annotation_mode_dropdown.addItems(["Single Annotation", "Multi Annotation", "Multi-Class Annotation"])
+        self.annotation_mode_dropdown.addItems(["Detection Only (DO)", "Binary Classification", "3 classes", "4 classes", "5 classes", "6 classes", "7 classes", "8 classes", "9 classes", "10 classes"])
         self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
         hbox.addWidget(self.annotation_mode_dropdown)
         
