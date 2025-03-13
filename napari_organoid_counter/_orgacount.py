@@ -245,7 +245,7 @@ class OrganoiDL():
         
         new_bboxes = convert_boxes_from_napari_view(new_bboxes)
         new_scores =  torch.Tensor(list(new_scores))
-        new_labels = torch.Tensor(list(new_scores))
+        new_labels = torch.Tensor(list(new_labels))
         new_ids = list(new_ids)
         # if run hasn't been run
         if shapes_name not in self.pred_bboxes.keys():
