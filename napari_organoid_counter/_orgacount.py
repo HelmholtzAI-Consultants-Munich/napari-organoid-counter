@@ -46,6 +46,7 @@ class OrganoiDL():
         self.cur_min_diam = 30
 
         self.model = None
+        self.model_name = settings.MODELS['yolov3 (BC)']
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
@@ -206,6 +207,18 @@ class OrganoiDL():
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um
         pred_bboxes, pred_scores, pred_labels, pred_ids = self._apply_confidence_thresh(shapes_name)
+
+        # Convert pred_labels to a list so we can modify it
+        #pred_labels = pred_labels.tolist()
+
+        # If we are using binary classification (yolov3 (BC)), mark low-confidence boxes as uncertain
+        if self.model_name:
+            # Mark low-confidence predictions as 'uncertain'
+            low_confidence_indices = [idx for idx, score in enumerate(pred_scores) if score < confidence]
+            for idx in low_confidence_indices:
+                pred_labels[idx] = -1  # Mark as uncertain
+
+        # Filter small organoids based on diameter after labeling uncertain predictions
         if pred_bboxes.size(0)!=0:
             pred_bboxes, pred_scores, pred_labels, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_labels, pred_ids)
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
@@ -214,13 +227,23 @@ class OrganoiDL():
     def _apply_confidence_thresh(self, shapes_name):
         """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
-        keep = (self.pred_scores[shapes_name]>self.cur_confidence).nonzero(as_tuple=True)[0]
-        result_bboxes = self.pred_bboxes[shapes_name][keep]
-        result_scores = self.pred_scores[shapes_name][keep]
-        result_labels = self.pred_labels[shapes_name][keep]
-        result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
+
+        # If it's a binary classification model, keep all predictions
+        if self.model_name:
+            result_bboxes = self.pred_bboxes[shapes_name]  # Keep all bounding boxes
+            result_scores = self.pred_scores[shapes_name]  # Keep all scores
+            result_labels = self.pred_labels[shapes_name]  # Keep all labels
+            result_ids = self.pred_ids[shapes_name]  # Keep all IDs
+        else:
+            # Apply confidence threshold for detection-only models
+            keep = (self.pred_scores[shapes_name] > self.cur_confidence).nonzero(as_tuple=True)[0]
+            result_bboxes = self.pred_bboxes[shapes_name][keep]
+            result_scores = self.pred_scores[shapes_name][keep]
+            result_labels = self.pred_labels[shapes_name][keep]
+            result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
+
         return result_bboxes, result_scores, result_labels, result_ids
-    
+
     def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_labels, pred_ids):
         """ Filters out small result boxes of shapes_name based on the current min diameter size. """
         if pred_bboxes is None: return None
