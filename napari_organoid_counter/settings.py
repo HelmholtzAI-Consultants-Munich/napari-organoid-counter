@@ -16,7 +16,7 @@ def init():
         "rtmdet (DO)":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
                     "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
                     },
-        "Binary Classification": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
+        "yolov3 (BC)": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
                         "source": "https://zenodo.org/records/14900559/files/best_coco_bbox_mAP_epoch_2.pth"
                         }
     }
@@ -41,7 +41,7 @@ def init():
         "rtmdet (DO)":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
                     "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
                     },
-        "Binary Classification": {"source": "https://zenodo.org/records/14900559/files/yolov3_416_organoid_two_class.py",
+        "yolov3 (BC)": {"source": "https://zenodo.org/records/14900559/files/yolov3_416_organoid_two_class.py",
                         "destination": ".mim/configs/yolo/yolov3_416_organoid_two_class.py"
                         }
 }
