@@ -2,13 +2,29 @@
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. Several object detection DL models were trained on patches of 2D microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
-![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
+UPDATE DEMO V3
 
-## What's new in v2?
-Here is a list of the main changes v2 of napari-organoid-counter offers:
-* Use of DL models for object detection - pretrained models: Faster R-CNN, YOLOv3, SSD, and RTMDet. The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
+## What's new in v3?
+Here is a list of the main changes v3 of napari-organoid-counter offers:
+* Support for multiple DL models: 
+- Object Detection Only (DO) - pretrained models: Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), and RTMDet (DO). The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
+- Detection and Binary Classification (BC) - pretrained models: Currently, YOLOv3 (BC) is supported, which not only detects organoids but also differentiates between two types of organoids (Class 0 and Class 1).
 * Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
 * Model confidence added as tunable parameter
+* Binary classification support: Class 0 organoids are represented with Green and Class 1 with Blue. Bounding boxes for low confidence predictions will remain in Magenta with the label "uncertain."
+* New annotation system:
+- Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
+CTRL+0 to change to Green for Class 0
+CTRL+1 to change to Blue for Class 1
+CTRL+2 to change color to Orange for Class 2
+CTRL+3 to change color to Purple for Class 3
+CTRL+4 to change color to Cyan for Class 4
+CTRL+5 to change color to Red for Class 5
+CTRL+6 to change color to Brown for Class 6
+CTRL+7 to change color to Pink for Class 7
+CTRL+8 to change color to Yellow for Class 8
+CTRL+9 to change color to Light Blue for Class 9
+- When saving the annotations, the class label is recorded in the .json file based on the color of the bounding box.
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
 * Object ID along with model confidence displayed in the viewer - this can now be related to box id in csv file of extracted features
 * _Fixed:_ box thickness changing at different donwsampling rates
@@ -64,7 +80,7 @@ If you encounter any problems, please [file an issue](https://github.com/Helmhol
 
 ## Intended Audience & Supported Data
 
-This plugin has been developed and tested with 2D CZI microscopy images of lunch organoids. The images have been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin only supports single channel grayscale images. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
+This plugin has been developed and tested with 2D CZI microscopy images of lung organoids. The images have been previously converted from a 3D stack to 2D using an extended focus algorithm. This plugin only supports single channel grayscale images. This plugin may be used as a baseline for developers who wish to extend the plugin to work with other types of input images and/or improve the detection algorithm. 
 
 ## Dependencies
 
