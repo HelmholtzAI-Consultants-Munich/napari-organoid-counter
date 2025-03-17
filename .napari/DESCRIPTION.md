@@ -15,6 +15,8 @@ Here is a list of the main changes v3 of napari-organoid-counter offers:
 * New annotation system:
 - Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
 - :green_circle: **CTRL+0** to change to **Green** for Class 0
+- :blue_circle: **CTRL+1** to change to **Blue** for Class 1
+- :purple_circle: **CTRL+2** to change to **Purple** for Class 2
 CTRL+1 to change to Blue for Class 1
 CTRL+2 to change color to Orange for Class 2
 CTRL+3 to change color to Purple for Class 3
