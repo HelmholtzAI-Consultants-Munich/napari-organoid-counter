@@ -312,32 +312,30 @@ class OrganoidCounterWidget(QWidget):
         """ Adds the shapes layer to the viewer or updates it if already there """
         self._update_num_organoids(len(bboxes))
 
-        print(labels)
-
         # Convert PyTorch tensors to lists (if they are tensors)
         if hasattr(scores, "tolist"):
             scores = scores.tolist()
         if hasattr(labels, "tolist"):
             labels = labels.tolist()
         
-        
         # Default to magenta for detection-only models
         edge_color = []
         labels_updated = labels.copy()  # Make a copy of the labels so we can modify them
+        text_annotations = []  # To store text annotations (like 'uncertain')
 
         # Check if we are running the binary classification model
         if self.model_name == "yolov3 (BC)":
-            edge_color = np.array([
-                settings.COLOR_CLASS_0 if label == 0 else settings.COLOR_CLASS_1
-                for label in labels
-            ])
-
-            # Apply magenta color to low confidence boxes (e.g., confidence < threshold)
-            confidence_threshold = self.confidence # Use the same threshold as the model's confidence
-            for idx, score in enumerate(scores):
-                if score < confidence_threshold:  # Low confidence
-                    edge_color[idx] = settings.COLOR_DEFAULT  # Magenta color
-                    labels_updated[idx] = 'uncertain'  # Set label to 'uncertain' for low-confidence boxes
+            for idx, label in enumerate(labels):
+                if label == 0:
+                    edge_color.append(settings.COLOR_CLASS_0)
+                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: Class 0')  # Confidence text for class 0
+                elif label == 1:
+                    edge_color.append(settings.COLOR_CLASS_1)
+                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: Class 1')  # Confidence text for class 1
+                elif label == -1:
+                    edge_color.append(settings.COLOR_DEFAULT)  # Magenta color for low confidence bounding boxes
+                    #labels_updated[idx] = 'uncertain' # Replace -1 with 'uncertain'
+                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: uncertain')  # Add 'uncertain' as text annotation
         
         # Determine if this is a detection-only model
         is_detection_only = self.model_name in ["faster r-cnn (DO)", "ssd (DO)", "yolov3 (DO)", "rtmdet (DO)"]
@@ -346,7 +344,8 @@ class OrganoidCounterWidget(QWidget):
         text_params = None
         if not is_detection_only:
             text_params = {
-                'string': 'Conf.: {scores:.2f}\nLabel: {labels: .0f}',
+                #'string': 'Conf.: {scores:.2f}\nLabel: {labels_updated}',
+                'string': text_annotations,
                 'size': 9,
                 'anchor': 'upper_left',
             }
