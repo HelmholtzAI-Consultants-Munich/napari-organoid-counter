@@ -104,8 +104,8 @@ class OrganoidCounterWidget(QWidget):
 
         # Mapping annotation modes to number of classes
         self.annotation_mode_mapping = {
-            0: {"name": "Detection Only", "classes": {0}},
-            1: {"name": "Binary Classification", "classes": {0, 1}},
+            0: {"name": "Detection Only (DO)", "classes": {0}},
+            1: {"name": "Binary Classification (BC)", "classes": {0, 1}},
             2: {"name": "3 Classes", "classes": {0, 1, 2}},
             3: {"name": "4 Classes", "classes": {0, 1, 2, 3}},
             4: {"name": "5 Classes", "classes": {0, 1, 2, 3, 4}},
@@ -312,21 +312,32 @@ class OrganoidCounterWidget(QWidget):
         """ Adds the shapes layer to the viewer or updates it if already there """
         self._update_num_organoids(len(bboxes))
 
+        print(labels)
+
         # Convert PyTorch tensors to lists (if they are tensors)
         if hasattr(scores, "tolist"):
             scores = scores.tolist()
         if hasattr(labels, "tolist"):
             labels = labels.tolist()
         
-        # Default to magenta for detection only models
-        edge_color = settings.COLOR_DEFAULT
+        
+        # Default to magenta for detection-only models
+        edge_color = []
+        labels_updated = labels.copy()  # Make a copy of the labels so we can modify them
 
         # Check if we are running the binary classification model
-        if self.model_name == "Binary Classification":
+        if self.model_name == "yolov3 (BC)":
             edge_color = np.array([
                 settings.COLOR_CLASS_0 if label == 0 else settings.COLOR_CLASS_1
                 for label in labels
             ])
+
+            # Apply magenta color to low confidence boxes (e.g., confidence < threshold)
+            confidence_threshold = self.confidence # Use the same threshold as the model's confidence
+            for idx, score in enumerate(scores):
+                if score < confidence_threshold:  # Low confidence
+                    edge_color[idx] = settings.COLOR_DEFAULT  # Magenta color
+                    labels_updated[idx] = 'uncertain'  # Set label to 'uncertain' for low-confidence boxes
         
         # Determine if this is a detection-only model
         is_detection_only = self.model_name in ["faster r-cnn (DO)", "ssd (DO)", "yolov3 (DO)", "rtmdet (DO)"]
@@ -350,7 +361,7 @@ class OrganoidCounterWidget(QWidget):
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
             self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
-            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
+            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels_updated}
             self.viewer.layers[labels_layer_name].edge_color = edge_color
             self.viewer.layers[labels_layer_name].edge_width = 12
             self.viewer.layers[labels_layer_name].refresh()
@@ -387,7 +398,7 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever Run Organoid Counter button is clicked """
         # Check if the model is 'Binary Classification' and ensure it's not in 'Detection Only' mode
         current_annotation_mode = self.annotation_mode
-        if self.model_name == 'Binary Classification' and current_annotation_mode == 0:
+        if self.model_name == 'yolov3 (BC)' and current_annotation_mode == 0:
             show_error("Please switch to Binary Classification Annotation mode or use more than 2 classes to use the Binary Classification model.")
             return
             
@@ -616,13 +627,33 @@ class OrganoidCounterWidget(QWidget):
             
             # Check if all bounding boxes have valid edge colors
             all_colored = True
+            used_colors = set()  # Set to track the colors that are used
+
             for edge_color in edge_colors:
-                if not any(np.allclose(edge_color[:3], valid_color[:3]) for valid_color in valid_colors):
+                # Check if the edge_color is one of the valid colors
+                matched = False
+                for valid_color in valid_colors:
+                    if np.allclose(edge_color[:3], valid_color[:3]):
+                        used_colors.add(tuple(valid_color[:3]))  # Store color as a tuple
+                        matched = True
+                        break
+                
+                # If an edge color doesn't match any valid color, mark as invalid
+                if not matched:
                     all_colored = False
                     break
-            
+
             if not all_colored:
-                show_error('Please change the color of all bounding boxes before saving.')
+                # Convert RGB values to color names using self.color_mapping
+                color_names = [self.color_mapping[class_num][1] for class_num in valid_classes]
+                show_error(f'Please change the color of all bounding boxes to one of the valid colors {color_names} before saving.')
+                return
+            
+            # Check if all valid colors have been used
+            missing_colors = [tuple(color[:3]) for color in valid_colors if tuple(color[:3]) not in used_colors]
+            if missing_colors:
+                missing_color_names = [self.color_mapping[class_num][1] for class_num in valid_classes if tuple(self.color_mapping[class_num][0][:3]) in missing_colors]
+                show_error(f'Missing colors: {missing_color_names}. Please use all colors for that specific annotation mode before saving.')
                 return
             
             # Assign organoid label based on edge_color
@@ -633,34 +664,6 @@ class OrganoidCounterWidget(QWidget):
                         break
                 else:
                     raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
-        
-        """
-
-            all_colored = True
-            for edge_color in edge_colors:
-                # Compare the colors with a tolerance using np.allclose to account for floating-point errors
-                if not (np.allclose(edge_color[:3], green[:3]) or np.allclose(edge_color[:3], blue[:3])):
-                    all_colored = False
-                    break
-
-            if not all_colored:
-                show_error('Please change the color of all bounding boxes before saving.')
-                return
-            
-            # Assign organoid label based on edge_color
-            for edge_color in edge_colors:
-                if np.allclose(edge_color[:3], green[:3]):
-                    labels.append(0)  # Label for green
-                elif np.allclose(edge_color[:3], blue[:3]):
-                    labels.append(1)  # Label for blue
-                else:
-                    raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
-
-        else: # Other annotation modes (3 classes, 4 classes, etc.)
-            
-            # Get the edge colors for all bounding boxes
-            edge_colors = self.cur_shapes_layer.edge_color
-        """
 
         data_json = utils.get_bboxes_as_dict(bboxes, 
                                     self.viewer.layers[self.save_layer_name].properties['box_id'],
@@ -942,7 +945,7 @@ class OrganoidCounterWidget(QWidget):
 
         # Dropdown
         self.annotation_mode_dropdown = QComboBox()
-        self.annotation_mode_dropdown.addItems(["Detection Only (DO)", "Binary Classification", "3 classes", "4 classes", "5 classes", "6 classes", "7 classes", "8 classes", "9 classes", "10 classes"])
+        self.annotation_mode_dropdown.addItems(["Detection Only (DO)", "Binary Classification (BC)", "3 classes", "4 classes", "5 classes", "6 classes", "7 classes", "8 classes", "9 classes", "10 classes"])
         self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
         hbox.addWidget(self.annotation_mode_dropdown)
         
