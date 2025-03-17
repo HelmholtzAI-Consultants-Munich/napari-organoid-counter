@@ -208,15 +208,11 @@ class OrganoiDL():
         self.cur_min_diam = min_diameter_um
         pred_bboxes, pred_scores, pred_labels, pred_ids = self._apply_confidence_thresh(shapes_name)
 
-        # Convert pred_labels to a list so we can modify it
-        #pred_labels = pred_labels.tolist()
-
         # If we are using binary classification (yolov3 (BC)), mark low-confidence boxes as uncertain
         if self.model_name:
-            # Mark low-confidence predictions as 'uncertain'
-            low_confidence_indices = [idx for idx, score in enumerate(pred_scores) if score < confidence]
-            for idx in low_confidence_indices:
-                pred_labels[idx] = -1  # Mark as uncertain
+           for idx, score in enumerate(pred_scores):
+                if score <= confidence:
+                    pred_labels[idx] = -1
 
         # Filter small organoids based on diameter after labeling uncertain predictions
         if pred_bboxes.size(0)!=0:
@@ -228,12 +224,14 @@ class OrganoiDL():
         """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
 
-        # If it's a binary classification model, keep all predictions
+        # If it's a binary classification model, keep predictions above 0.05 confidence
         if self.model_name:
-            result_bboxes = self.pred_bboxes[shapes_name]  # Keep all bounding boxes
-            result_scores = self.pred_scores[shapes_name]  # Keep all scores
-            result_labels = self.pred_labels[shapes_name]  # Keep all labels
-            result_ids = self.pred_ids[shapes_name]  # Keep all IDs
+            min_threshold = 0.05
+            keep = (self.pred_scores[shapes_name] > min_threshold).nonzero(as_tuple=True)[0]
+            result_bboxes = self.pred_bboxes[shapes_name][keep]  # Keep all bounding boxes
+            result_scores = self.pred_scores[shapes_name][keep]  # Keep all scores
+            result_labels = self.pred_labels[shapes_name][keep]  # Keep all labels
+            result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]  # Keep all IDs
         else:
             # Apply confidence threshold for detection-only models
             keep = (self.pred_scores[shapes_name] > self.cur_confidence).nonzero(as_tuple=True)[0]
