@@ -14,7 +14,7 @@ Here is a list of the main changes v3 of napari-organoid-counter offers:
 * Binary classification support: Class 0 organoids are represented with Green and Class 1 with Blue. Bounding boxes for low confidence predictions will remain in Magenta with the label "uncertain."
 * New annotation system:
 - Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
-<mark style="color: #55ff00;">CTRL+0 to change to Green for Class 0</mark>
+- :green_circle: **CTRL+0** to change to **Green** for Class 0
 CTRL+1 to change to Blue for Class 1
 CTRL+2 to change color to Orange for Class 2
 CTRL+3 to change color to Purple for Class 3
