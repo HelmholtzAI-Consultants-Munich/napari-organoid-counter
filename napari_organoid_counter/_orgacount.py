@@ -46,7 +46,6 @@ class OrganoiDL():
         self.cur_min_diam = 30
 
         self.model = None
-        self.model_name = settings.MODELS['yolov3 (BC)']
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
@@ -201,15 +200,15 @@ class OrganoiDL():
         self.pred_ids[shapes_name] = [(i+1) for i in range(num_predictions)]
         self.next_id[shapes_name] = num_predictions+1
 
-    def apply_params(self, shapes_name, confidence, min_diameter_um):
+    def apply_params(self, shapes_name, confidence, min_diameter_um, model_name):
         """ After results have been stored in dict this function will filter the dicts based on the confidence
         and min_diameter_um thresholds for the given results defined by shape_name and return the filtered dicts. """
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um
-        pred_bboxes, pred_scores, pred_labels, pred_ids = self._apply_confidence_thresh(shapes_name)
+        pred_bboxes, pred_scores, pred_labels, pred_ids = self._apply_confidence_thresh(shapes_name, model_name)
 
         # If we are using binary classification (yolov3 (BC)), mark low-confidence boxes as uncertain
-        if self.model_name:
+        if model_name== 'yolov3 (BC)':
            for idx, score in enumerate(pred_scores):
                 if score <= confidence:
                     pred_labels[idx] = -1
@@ -220,12 +219,12 @@ class OrganoiDL():
         pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
         return pred_bboxes, pred_scores, pred_labels, pred_ids
 
-    def _apply_confidence_thresh(self, shapes_name):
+    def _apply_confidence_thresh(self, shapes_name, model_name):
         """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
 
         # If it's a binary classification model, keep predictions above 0.05 confidence
-        if self.model_name:
+        if model_name=='yolov3 (BC)':
             min_threshold = 0.05
             keep = (self.pred_scores[shapes_name] > min_threshold).nonzero(as_tuple=True)[0]
             result_bboxes = self.pred_bboxes[shapes_name][keep]  # Keep all bounding boxes
