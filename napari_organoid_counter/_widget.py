@@ -190,12 +190,12 @@ class OrganoidCounterWidget(QWidget):
             def change_color_for_class(viewer: napari.Viewer, class_num=class_num):
                 # Check if the class is valid for the current annotation mode
                 if class_num not in self.selected_classes:
-                    show_warning(f"Class {class_num} is not available in the current annotation mode.")
+                    show_error(f"Class {class_num} is not available in the current annotation mode.")
                     return
                 
                 # Ensure we are NOT in detection-only mode
                 if self.annotation_mode == 0:
-                    show_warning(f"Cannot change class in Detection Only annotation mode.")
+                    show_error(f"Cannot change class in Detection Only annotation mode.")
                     return
                 
                 # Proceed with the color change if valid
@@ -325,14 +325,16 @@ class OrganoidCounterWidget(QWidget):
             'anchor': 'upper_left',
         }
 
-        # Determine edge color based on predicted label
         edge_color = []
-        for label in labels:
-            if label == -1:
-                edge_color.append(settings.COLOR_DEFAULT)
-            else:
-                edge_color.append(self.color_mapping[label][0])
-
+        if self.annotation_mode == 0:  # Detection-Only mode
+            edge_color = [settings.COLOR_DEFAULT] * len(labels)  # Set all edges to default color (magenta)
+        else:  # For other annotation modes (Binary Classification, 3 classes, etc.)
+            for label in labels:
+                if label == -1:  # Uncertain labels in Binary Classification Mode
+                    edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
+                else:
+                    edge_color.append(self.color_mapping[label][0])  # Set edge color based on the predicted label
+            
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
             self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
@@ -427,7 +429,7 @@ class OrganoidCounterWidget(QWidget):
                            self.window_overlap)
         
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
-        bboxes, scores, labels, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
+        bboxes, scores, labels, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter, self.model_name)
         # hide activcity dock on completion
         self.viewer.window._status_bar._toggle_activity_dock(False)
         # update widget with results
@@ -480,7 +482,7 @@ class OrganoidCounterWidget(QWidget):
                                                 self.cur_shapes_layer.properties['labels'],
                                                 self.cur_shapes_layer.properties['box_id'])
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
-            bboxes, scores, labels, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter)
+            bboxes, scores, labels, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter, self.model_name)
             self._update_vis_bboxes(bboxes, scores, labels, box_ids, self.cur_shapes_name)
 
     def _on_diameter_slider_changed(self):
@@ -584,8 +586,6 @@ class OrganoidCounterWidget(QWidget):
             show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
             return
         
-        labels = []
-        
         # Check for annotation mode
         if self.annotation_mode == 0: # Detection Only Mode
             # Set all labels to None since we don't need them in detection-only mode
@@ -596,50 +596,38 @@ class OrganoidCounterWidget(QWidget):
             # Get valid classes and colors from annotation_mode_mapping
             valid_classes = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
             valid_colors = [self.color_mapping[class_num][0] for class_num in valid_classes]
+
+            print(valid_classes)
+            print(valid_colors)
             
             # Get the edge colors for all bounding boxes
             edge_colors = self.cur_shapes_layer.edge_color
-            
-            # Check if all bounding boxes have valid edge colors
-            all_colored = True
-            used_colors = set()  # Set to track the colors that are used
 
-            for edge_color in edge_colors:
-                # Check if the edge_color is one of the valid colors
-                matched = False
-                for valid_color in valid_colors:
-                    if np.allclose(edge_color[:3], valid_color[:3]):
-                        used_colors.add(tuple(valid_color[:3]))  # Store color as a tuple
-                        matched = True
-                        break
-                
-                # If an edge color doesn't match any valid color, mark as invalid
-                if not matched:
-                    all_colored = False
-                    break
+            print(edge_colors)
 
-            if not all_colored:
-                # Convert RGB values to color names using self.color_mapping
-                color_names = [self.color_mapping[class_num][1] for class_num in valid_classes]
-                show_error(f'Please change the color of all bounding boxes to one of the valid colors {color_names} before saving.')
-                return
-            
-            # Check if all valid colors have been used
-            missing_colors = [tuple(color[:3]) for color in valid_colors if tuple(color[:3]) not in used_colors]
-            if missing_colors:
-                missing_color_names = [self.color_mapping[class_num][1] for class_num in valid_classes if tuple(self.color_mapping[class_num][0][:3]) in missing_colors]
-                show_error(f'Missing colors: {missing_color_names}. Please use all colors for that specific annotation mode before saving.')
-                return
-            
             # Assign organoid label based on edge_color
+            labels = []
+            all_valid = True  # Flag to track if all bounding boxes are valid
+
             for edge_color in edge_colors:
+                matched = False # Flag to check if the current color matches any valid color
                 for class_num, valid_color in enumerate(valid_colors):
                     if np.allclose(edge_color[:3], valid_color[:3]):
-                        labels.append(class_num)
+                        labels.append(class_num)  # Assign label based on the matched color
+                        matched = True
                         break
-                else:
-                    raise ValueError(f"Unexpected edge color {edge_color[:3]} encountered.")
+                # If no match for this edge_color, mark the flag to False
+                if not matched:
+                    all_valid = False
+                    break # Exit the loop early if any color is invalid
+            
+            # If any bounding box has an invalid color, show a warning and return without saving
+            if not all_valid:
+                # If no match is found, mark as not all boxes are colored
+                show_error("Some organoids have not been assigned a valid class (null class). Please ensure all organoids are properly classified before saving.")
+                return
 
+        # Get the bounding boxes as a dictionary
         data_json = utils.get_bboxes_as_dict(bboxes, 
                                     self.viewer.layers[self.save_layer_name].properties['box_id'],
                                     self.viewer.layers[self.save_layer_name].properties['scores'],
