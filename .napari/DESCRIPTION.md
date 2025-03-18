@@ -7,23 +7,16 @@ UPDATE DEMO V3
 ## What's new in v3?
 Here is a list of the main changes v3 of napari-organoid-counter offers:
 * Support for multiple DL models: 
-- Object Detection Only (DO) - pretrained models: Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), and RTMDet (DO). The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
-- Detection and Binary Classification (BC) - pretrained models: Currently, YOLOv3 (BC) is supported, which not only detects organoids but also differentiates between two types of organoids (Class 0 and Class 1).
+**Object Detection Only (DO)** - pretrained models: Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), and RTMDet (DO). The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
+**Detection and Binary Classification (BC)** - pretrained models: Currently, YOLOv3 (BC) is supported, which not only detects organoids but also differentiates between two types of organoids (Class 0 and Class 1).
 * Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
 * Model confidence added as tunable parameter
 * Binary classification support: Class 0 organoids are represented with Green and Class 1 with Blue. Bounding boxes for low confidence predictions will remain in Magenta with the label "uncertain."
 * New annotation system:
 - Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
-- :green_circle: **CTRL+0** to change to **Green** for Class 0
-- :blue_circle: **CTRL+1** to change to **Blue** for Class 1
-- :orange_circle: **CTRL+2** to change to **Orange** for Class 2
-- :purple_circle: **CTRL+3** to change to **Purple** for Class 3
-- :cyan_circle: **CTRL+4** to change to **Cyan** for Class 4
-- :red_circle: **CTRL+5** to change to **Red** for Class 5
-- :brown_circle: **CTRL+6** to change to **Brown** for Class 6
-- :pink_circle: **CTRL+7** to change to **Pink** for Class 7
-- :yellow_circle: **CTRL+8**to change to **Yellow** for Class 8
-- :light_blue_circle: **CTRL+9** to change to **Light-Blue** for Class 9
+
+![Alt Text](readme_content/key_bindings.png)
+
 - When saving the annotations, the class label is recorded in the .json file based on the color of the bounding box.
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
 * Object ID along with model confidence displayed in the viewer - this can now be related to box id in csv file of extracted features
