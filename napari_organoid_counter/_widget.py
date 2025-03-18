@@ -317,50 +317,21 @@ class OrganoidCounterWidget(QWidget):
             scores = scores.tolist()
         if hasattr(labels, "tolist"):
             labels = labels.tolist()
-        
-        # Default to magenta for detection-only models
-        edge_color = []
-        labels_updated = labels.copy()  # Make a copy of the labels so we can modify them
-        text_annotations = []  # To store text annotations (like 'uncertain')
 
-        # Check if we are running the binary classification model
-        if self.model_name == "yolov3 (BC)":
-            for idx, label in enumerate(labels):
-                if label == 0:
-                    edge_color.append(settings.COLOR_CLASS_0)
-                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: Class 0')  # Confidence text for class 0
-                elif label == 1:
-                    edge_color.append(settings.COLOR_CLASS_1)
-                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: Class 1')  # Confidence text for class 1
-                elif label == -1:
-                    edge_color.append(settings.COLOR_DEFAULT)  # Magenta color for low confidence bounding boxes
-                    #labels_updated[idx] = 'uncertain' # Replace -1 with 'uncertain'
-                    text_annotations.append(f'Conf.: {scores[idx]:.2f}\nLabel: uncertain')  # Add 'uncertain' as text annotation
-        
-        # Determine if this is a detection-only model
-        is_detection_only = self.model_name in ["faster r-cnn (DO)", "ssd (DO)", "yolov3 (DO)", "rtmdet (DO)"]
+        # Text parameters (for all models)
+        text_params = {
+            'string': 'Conf.: {scores:.2f}',  # Exclude Label
+            'size': 9,
+            'anchor': 'upper_left',
+        }
 
-        # Text parameters (used only if it's not a detection-only model)
-        text_params = None
-        if not is_detection_only:
-            text_params = {
-                #'string': 'Conf.: {scores:.2f}\nLabel: {labels_updated}',
-                'string': text_annotations,
-                'size': 9,
-                'anchor': 'upper_left',
-            }
-        else:
-            # For detection-only models, do not include the label in the text
-            text_params = {
-                'string': 'Conf.: {scores:.2f}',  # Exclude Label
-                'size': 9,
-                'anchor': 'upper_left',
-            }
+        # Determine edge color based on predicted label
+        edge_color = [self.color_mapping[label][0] for label in labels]  # List of colors corresponding to the predicted labels
 
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
             self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
-            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels_updated}
+            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
             self.viewer.layers[labels_layer_name].edge_color = edge_color
             self.viewer.layers[labels_layer_name].edge_width = 12
             self.viewer.layers[labels_layer_name].refresh()
