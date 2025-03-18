@@ -1,6 +1,6 @@
 ## Description
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. Several object detection DL models were trained on patches of 2D microscopy data. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
+A napari plugin to automatically count lung organoids from microscopy imaging data. Several deep learning (DL) models were trained on patches of 2D microscopy data—some for object detection only, and one for both detection and binary classification. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
 UPDATE DEMO V3
 
@@ -8,20 +8,16 @@ UPDATE DEMO V3
 Here is a list of the main changes v3 of napari-organoid-counter offers:
 * Support for multiple DL models: 
 **Object Detection Only (DO)** - pretrained models: Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), and RTMDet (DO). The data used for training these models along with the code for training can be found [here](https://www.kaggle.com/datasets/christinabukas/mutliorg).
-**Detection and Binary Classification (BC)** - pretrained models: Currently, YOLOv3 (BC) is supported, which not only detects organoids but also differentiates between two types of organoids (Class 0 and Class 1).
-* Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate
-* Model confidence added as tunable parameter
-* Binary classification support: Class 0 organoids are represented with Green and Class 1 with Blue. Bounding boxes for low confidence predictions will remain in Magenta with the label "uncertain."
+**Detection and Binary Classification (BC)** - pretrained models: Currently, YOLOv3 (BC) is supported, which not only detects organoids but also differentiates between two types of organoids (Class 0 and Class 1). Class 0 organoids are represented with Green and Class 1 with Blue. Bounding boxes for low confidence predictions will remain in Magenta with the label "uncertain.
+* Pyramid model inference with a sliding window approach and tunable parameters for window size and window downsampling rate.
+* Model confidence added as tunable parameter.
 * New annotation system:
-- Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
-
-![Alt Text](readme_content/key-bindings.png)
-
+- Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using keybindings.
 - When saving the annotations, the class label is recorded in the .json file based on the color of the bounding box.
-* Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
-* Object ID along with model confidence displayed in the viewer - this can now be related to box id in csv file of extracted features
-* _Fixed:_ box thickness changing at different donwsampling rates
-* Possibility to work interactively with different shape layers at the same time, go back adjust parameters and switch between shape layers from layer list selection
+* Allow to load and correct existing annotations (note: these must have been saved previously from v3 of this plugin).
+* Only model confidence displayed in the viewer for easy readability.
+* _Fixed:_ box thickness changing at different donwsampling rates.
+* Possibility to work interactively with different shape layers at the same time, go back adjust parameters and switch between shape layers from layer list selection.
 
 Technical Extensions:
 * Allows for Python 3.10
@@ -50,21 +46,38 @@ For installing on a Windows machine directly from within napari, follow the inst
 After installation, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
 
 The use of the napari-organoid-counter plugin is straightforward. Here is a step-to-step guide of the standard workflow:
-1. You can load the image or images you wish to process into the napari viewer with a simple drag and drop
-2. You can then select the layer you wish to work on by the drop-down box at the top of the input configurations
-3. To improve the way the image is visualised you can pre-process them by clicking the _Preprocess_ button and the image layer will automatically be updated with the result
-4. If you have a Faster R-CNN model you wish to use for the prediction, you can browser and select this by clicking on the _Choose_ button. Otherwise, the default model will be automatically downloaded from [here](https://zenodo.org/record/7708763#.ZDe6pS8Rpqs). Note that your own model must follow the specifications described here _(TODO)_.
-5. You can adjust the _Window sizes_ and _Downsampling_ parameters to define the window size in the sliding window inference and the downsampling that is performed on the image. If you have multiple objects with different sizes, it might be good to set multiple window sizes, with corresponding downsampling rates. You can seperate these with a comma in the text box (e.g. ```2048, 512```). After you have set _Window sizes_ and _Downsampling_ hit **Enter** for each for the changes to be accepted. 
-
+**1. Load and Select an Image**
+* Drag and drop the image(s) you wish to process into the napari viewer.
+Select the layer you want to work on using the drop-down box at the top of the input configurations.
+**2. Preprocessing (Optional)**
+* To improve the way the image is visualised you can pre-process them by clicking the _Preprocess_ button and the image layer will automatically be updated with the result
+**3. Model Selection**
+You can use either:
+* Your own model: If you have a Faster R-CNN model you wish to use for the prediction, you can browser and select this by clicking on the _Choose_ button. Note that your own model must follow the specifications described here _(TODO)_.
+* Pre-trained models: The plugin provides the following models, automatically downloaded if needed
+**Detection Only (DO):** Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), RTMDet (DO). These models will be automatically downloaded from Zenodo. Predicted bounding boxes will appear in default color magenta.
+**Binary Classification (BC):** YOLOv3 (BC). This model is also automatically downloaded from Zenodo. It predicts bounding boxes and classifies organoids as Green (Class 0) or Blue (Class 1), while low confidence cases remain in Magenta.
+**4. Annotation Mode & Model Constraints**
+* If a DO model is selected, all annotations modes are available.
+* If a BC model is selected, DO annotation mode is disabled, and a warning will appear.
+**5. Adjust Model Parameters**
+* You can adjust the _Window sizes_ and _Downsampling_ parameters to define the window size in the sliding window inference and the downsampling that is performed on the image. If you have multiple objects with different sizes, it might be good to set multiple window sizes, with corresponding downsampling rates. You can seperate these with a comma in the text box (e.g. ```2048, 512```). After you have set _Window sizes_ and _Downsampling_ hit **Enter** for each for the changes to be accepted. 
 **_Downsampling parameter:_** To detect large organoids (and ignore smaller structures) you may need to increase the downsampling rate, whereas if your organoids are small and are being missed by the algorithm, consider reducing the downsampling rate. 
-
 **_Window size parameter:_** The window size can also impact the number of objects detected: typically a ratio of 512 to 1 between window size and downsampling rate would give optimal results, while larger window sizes would lead to a drop in performance. However, please note that small window sizes will signicantly impact the runtime of the algorithm.
-
-6. By clicking the _Run Organoid Counter_ button the detection algorithm will run and a new shapes layer will be added to the viewer, with bounding boxes are placed around the detected organoid. You can add, edit or remove boxes using the _layer controls_ window (top left). The _Number of detected organoids_ will show you the number of organoids in the layer in real time. You can switch between viewing the box ids and model confidence for each box by toggling the _display text_ box in the _layer controls_ window. Boxes added by the user will by default have a confidence of 1.
-7. If you feel that your model is over- or under-predicting you can use the _Model confidence_ scroll bar and select the value which best suits your problem. Default confidence is set to 0.8.
-8. If you objects are typically bigger or smaller than those displayed you can use the _Minimum Diameter_ slider to set the minimum diameter of your objects. Default value is 30 um.
-9. After you are happy with the detection results (and your manual corrections if any), you can select which shapes layer results to save via the dropdown box. To save the bounding box coordinates (along with the box id, model confidence for that box, and x and y scale for that image) as a json file click _Save boxes_ and select where to save your file. The features can be saved in a csv file by clicking on the _Save features_. The saved features will include the organoid id, the two lengths of the boundig box (which corresponds to the min. and max. diameter of the organoid, approximated as an ellipse), the area of the organoid (again approximated as an ellipse).
-10. Additional options: The _Take Screenshot_ button has the same functionality as _File -> Save screenshot_. The _Reset Configs_ button will reset the image and all parameters to the original settings. To save features of the detected organoids (diameters when approximating organoid as an ellipse and organoid area) in a csv file click _Save features_. 
+**6. Running the Organoid Counter**
+By clicking the _Run Organoid Counter_ button the detection algorithm will run and a new shapes layer will be added to the viewer, with bounding boxes are placed around the detected organoid. 
+**7. Correcting & Annotating Bounding Boxes**
+You can add, edit or remove boxes using the _layer controls_ window (top left). The _Number of detected organoids_ will show you the number of organoids in the layer in real time. You can switch between viewing the model confidence for each box by toggling the _display text_ box in the _layer controls_ window. Boxes added by the user will by default have a confidence of 1.
+You can choose between different annotation modes and annotate up to 10 classes, based on your preferences. To change the color of the bounding boxes, key bindings are assigned for each specific class:
+![Key Bindings](C:\Users\Ines\Desktop\napari-organoid-counter\readme-content\key-bindings.png)
+If using an annotation mode (other than DO), you must assign the correct colors before saving. If any bounding boxes are missing a valid class color, a warning appears.
+**8. Adjusting Confidence & Object Size Thresholds**
+* If you feel that your model is over- or under-predicting you can use the _Model confidence_ scroll bar and select the value which best suits your problem. Default confidence is set to 0.8.
+* If you objects are typically bigger or smaller than those displayed you can use the _Minimum Diameter_ slider to set the minimum diameter of your objects. Default value is 30 um.
+**9. Saving Results**
+After you are happy with the detection results (and your manual corrections if any), you can select which shapes layer results to save via the dropdown box. To save the bounding box coordinates (along with the box id, model confidence for that box, x and y scale for that image, and class labels) as a json file click _Save boxes_ and select where to save your file. The class label is indicated by the color of the bounding box. In DO mode, class is 'null'. The features can be saved in a csv file by clicking on the _Save features_. The saved features will include the organoid id, the two lengths of the boundig box (which corresponds to the min. and max. diameter of the organoid, approximated as an ellipse), the area of the organoid (again approximated as an ellipse).
+**10. Additional Options**
+The _Take Screenshot_ button has the same functionality as _File -> Save screenshot_. The _Reset Configs_ button will reset the image and all parameters to the original settings. To save features of the detected organoids (diameters when approximating organoid as an ellipse and organoid area) in a csv file click _Save features_. 
 
 
 ## Getting Help
