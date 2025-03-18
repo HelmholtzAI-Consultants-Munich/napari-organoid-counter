@@ -326,7 +326,12 @@ class OrganoidCounterWidget(QWidget):
         }
 
         # Determine edge color based on predicted label
-        edge_color = [self.color_mapping[label][0] for label in labels]  # List of colors corresponding to the predicted labels
+        edge_color = []
+        for label in labels:
+            if label == -1:
+                edge_color.append(settings.COLOR_DEFAULT)
+            else:
+                edge_color.append(self.color_mapping[label][0])
 
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
