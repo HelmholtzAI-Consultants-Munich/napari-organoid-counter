@@ -15,7 +15,7 @@ Here is a list of the main changes v3 of napari-organoid-counter offers:
 * New annotation system:
 - Annotate up to 10 classes of organoids, each assigned a unique color. Users can change the bounding box color for each class using follwing keybindings:
 
-![Alt Text](readme_content/key_bindings.png)
+![Alt Text](readme_content/key-bindings.png)
 
 - When saving the annotations, the class label is recorded in the .json file based on the color of the bounding box.
 * Allow to load and correct existing annotations (note: these must have been saved previously from v2 of this plugin)
