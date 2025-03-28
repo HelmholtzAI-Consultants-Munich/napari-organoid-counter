@@ -1,4 +1,4 @@
-# Napari Organoid Counter - Version 0.2 is out! 
+# Napari Organoid Counter - Version 0.3 is out! 
 
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
@@ -14,7 +14,9 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ***Hold it for the demo!***
 
-UPDATE DEMO v3
+![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-plugin-v2.gif)
+
+This demo showcases the features of Version 0.2, while the new functionalities of Version 0.3 are detailed in the "What's New in V3?" section.
 
 ----------------------------------
 
@@ -33,14 +35,17 @@ This plugin has been tested with python 3.9 and 3.10 - you may consider using co
 
     ```pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git```
 
-2. Additionally, you will then need to install one additional dependency:
+2. Additionally, you will then need to install one additional dependency:**
 
      ``` mim install "mmcv<2.2.0,>=2.0.0rc4" ```
 
+*Note:* mmcv requires *Microsoft Visual Studio 2022 Build Tools*. Download and install Visual Studio Build Tools [here] (https://visualstudio.microsoft.com/es/visual-cpp-build-tools/) and make sure to select *"Desktop development with C++"* option.
+
+
 For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv<2.2.0,>=2.0.0rc4").
 
-## What's new in v2? -> ## What's new in v3?
-Checkout our *What's New in v2* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
+## What's new in v3?
+Checkout our *What's New in v3* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/.napari/DESCRIPTION.md#whats-new-in-v2).
 
 ## How to use?
 After installing, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
