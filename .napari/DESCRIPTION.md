@@ -62,7 +62,7 @@ The use of the napari-organoid-counter plugin is straightforward. Here is a step
 **3. Model Selection**
 
 You can use either:
-* Your own model: If you have a Faster R-CNN model you wish to use for the prediction, you can browser and select this by clicking on the _Choose_ button. Note that your own model must follow the specifications described here _(TODO)_.
+* Your own model: If you have a Faster R-CNN model you wish to use for the prediction, you can browser and select this by clicking on the _Choose_ button..
 * Pre-trained models: The plugin provides the following models, automatically downloaded if needed.
 
 * **Detection Only (DO):** Faster R-CNN (DO), YOLOv3 (DO), SSD (DO), RTMDet (DO). These models will be automatically downloaded from Zenodo. Predicted bounding boxes will appear in default color magenta.
