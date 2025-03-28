@@ -40,7 +40,9 @@ This plugin has been tested with python 3.9 and 3.10 - you may consider using co
 
   ``` mim install "mmcv<2.2.0,>=2.0.0rc4" ```
 
-**Note:** mmcv requires **Microsoft Visual Studio 2022 Build Tools**. Download and install Visual Studio Build Tools [here] (https://visualstudio.microsoft.com/es/visual-cpp-build-tools/) and make sure to select **"Desktop development with C++"** option (https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/visual_studio_build_tools.png)
+**Note:** mmcv requires **Microsoft Visual Studio 2022 Build Tools**. Download and install Visual Studio Build Tools here https://visualstudio.microsoft.com/es/visual-cpp-build-tools/ and make sure to select **"Desktop development with C++"** option: 
+
+![Visual Studio Build Tools] (https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/visual_studio_build_tools.png)
 
 For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf). Step 2 additionally needs to be performed here too (mim install "mmcv<2.2.0,>=2.0.0rc4").
 
