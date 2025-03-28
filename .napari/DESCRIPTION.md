@@ -13,7 +13,7 @@ Support for multiple DL models:
 
 * **Pyramid Model Inference** – Run inference using a sliding window approach, with tunable parameters for window size and downsampling rate.
 * **Model Confidence** – A new tunable parameter to adjust and refine predictions based on confidence levels.
-* **Annotation of Up to 10 Classes** – You can now annotate up to 10 different organoid classes, each with a unique color. Bounding box colors for each class can be adjusted using key bindings (see Quickstart instructions for details).
+* **Annotation of Up to 10 Classes** – You can now annotate up to 10 different organoid classes, each with a unique color. Bounding box colors for each class can be adjusted using key bindings (see [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#quickstart) for details).
 * **Saving Annotations with Class Labels** – When saving annotations, the class label is recorded in the .json file based on the bounding box color.
 * **Load and Correct Existing Annotations** – You can now load and modify previously saved annotations (note: these must have been saved using v3 of the plugin).
 * **Improved Readability** – Only model confidence is displayed in the viewer for better readability.
