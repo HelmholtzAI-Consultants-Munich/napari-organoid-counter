@@ -4,6 +4,7 @@ from napari.utils import progress
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
+
 #update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import torch
 import mmdet
@@ -62,6 +63,7 @@ class OrganoiDL():
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         mmdet_path = os.path.dirname(mmdet.__file__)
+        print(f"mmdet_path: {mmdet_path}")
         config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
         # download the corresponding config if it doesn't exist already
         if not os.path.exists(config_dst):
@@ -210,7 +212,7 @@ class OrganoiDL():
         # If we are using binary classification (yolov3 (BC)), mark low-confidence boxes as uncertain
         if model_name== 'yolov3 (BC)':
            for idx, score in enumerate(pred_scores):
-                if score <= confidence:
+                if score <= settings.CONFIDENCE_THRESHOLD_CLASS: # TODO: check what the score refers to: objectiness or class confidence?
                     pred_labels[idx] = -1
 
         # Filter small organoids based on diameter after labeling uncertain predictions
@@ -223,21 +225,12 @@ class OrganoiDL():
         """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
 
-        # If it's a binary classification model, keep predictions above 0.05 confidence
-        if model_name=='yolov3 (BC)':
-            min_threshold = 0.05
-            keep = (self.pred_scores[shapes_name] > min_threshold).nonzero(as_tuple=True)[0]
-            result_bboxes = self.pred_bboxes[shapes_name][keep]  # Keep all bounding boxes
-            result_scores = self.pred_scores[shapes_name][keep]  # Keep all scores
-            result_labels = self.pred_labels[shapes_name][keep]  # Keep all labels
-            result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]  # Keep all IDs
-        else:
-            # Apply confidence threshold for detection-only models
-            keep = (self.pred_scores[shapes_name] > self.cur_confidence).nonzero(as_tuple=True)[0]
-            result_bboxes = self.pred_bboxes[shapes_name][keep]
-            result_scores = self.pred_scores[shapes_name][keep]
-            result_labels = self.pred_labels[shapes_name][keep]
-            result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
+        # Apply confidence threshold
+        keep = (self.pred_scores[shapes_name] > self.cur_confidence).nonzero(as_tuple=True)[0]
+        result_bboxes = self.pred_bboxes[shapes_name][keep]
+        result_scores = self.pred_scores[shapes_name][keep]
+        result_labels = self.pred_labels[shapes_name][keep]
+        result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
 
         return result_bboxes, result_scores, result_labels, result_ids
 

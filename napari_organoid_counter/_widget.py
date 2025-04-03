@@ -227,16 +227,16 @@ class OrganoidCounterWidget(QWidget):
         """Change the edge color of selected shapes based on the class number."""
 
         # Check if the class_num is valid in the mapping
-        if class_num in self.color_mapping:
+        if class_num in settings.COLOR_MAPPING:
             current_edge_colors = self.cur_shapes_layer.edge_color
 
             # Update the edge color for the selected shapes
             for idx in selected_shapes:
-                current_edge_colors[idx] = self.color_mapping[class_num][0] # Set RGBA color
+                current_edge_colors[idx] = settings.COLOR_MAPPING[class_num][0] # Set RGBA color
 
             # Apply the updated colors back to the layer
             self.cur_shapes_layer.edge_color = current_edge_colors
-            show_info(f"Changed edge color of shapes {list(selected_shapes)} to {self.color_mapping[class_num][1]}.") # Print color name
+            show_info(f"Changed edge color of shapes {list(selected_shapes)} to {settings.COLOR_MAPPING[class_num][1]}.") # Print color name
         else:
             show_warning(f"Class {class_num} has no associated color.")  
 
@@ -320,21 +320,15 @@ class OrganoidCounterWidget(QWidget):
 
         # Text parameters (for all models)
         text_params = {
-            'string': 'Conf.: {scores:.2f}',  # Exclude Label
+            'string': 'ID: {box_id}\nConf.: {scores:.2f}\nClass: {labels}', #'Conf.: {scores:.2f}',  # Exclude Label
             'size': 9,
             'anchor': 'upper_left',
         }
 
-        edge_color = []
-        if self.annotation_mode == 0:  # Detection-Only mode
-            edge_color = [settings.COLOR_DEFAULT] * len(labels)  # Set all edges to default color (magenta)
-        else:  # For other annotation modes (Binary Classification, 3 classes, etc.)
-            for label in labels:
-                if label == -1:  # Uncertain labels in Binary Classification Mode
-                    edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
-                else:
-                    edge_color.append(self.color_mapping[label][0])  # Set edge color based on the predicted label
-            
+        # Edge color for the boxes
+        use_default_color = (self.annotation_mode == 0 or "(DO)" in self.model_name)
+        edge_color = utils.get_edge_color(labels, use_default_color)
+                    
         # if layer already exists
         if labels_layer_name in self.shape_layer_names: 
             self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
@@ -375,6 +369,7 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever Run Organoid Counter button is clicked """
         # Check if the model is 'Binary Classification' and ensure it's not in 'Detection Only' mode
         current_annotation_mode = self.annotation_mode
+        # TODO: make the condition more general (applicable to other models as well)
         if self.model_name == 'yolov3 (BC)' and current_annotation_mode == 0:
             show_error("Please switch to Binary Classification Annotation mode or use more than 2 classes to use the Binary Classification model.")
             return
@@ -564,50 +559,31 @@ class OrganoidCounterWidget(QWidget):
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
-
-    def _on_save_csv_click(self): 
-        """ Is called whenever Save features button is clicked """
-        bboxes = self.viewer.layers[self.save_layer_name].data
-        if not bboxes: show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
-        else:
-            # write diameters and area to csv
-            data_csv = utils.get_bbox_diameters(bboxes, 
-                                          self.viewer.layers[self.save_layer_name].properties['box_id'],
-                                          self.viewer.layers[self.save_layer_name].scale)
-            fd = QFileDialog()
-            name, _ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
-            if name: utils.write_to_csv(name, data_csv)
-
-    def _on_save_json_click(self):
-        """ Is called whenever Save boxes button is clicked """
-        bboxes = self.viewer.layers[self.save_layer_name].data
-        #scores = #add
-        if not bboxes: 
-            show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
-            return
-        
+    
+    def _assign_labels(self):
+        """ Assign labels to the bounding boxes based on their edge colors.
+        """
+        # Get the edge colors for all bounding boxes
+        edge_colors = self.cur_shapes_layer.edge_color
+        all_valid = True  # Flag to track if all bounding boxes are valid
         # Check for annotation mode
         if self.annotation_mode == 0: # Detection Only Mode
             # Set all labels to None since we don't need them in detection-only mode
-            labels = [None] * len(bboxes)
+            labels = [-1] * len(edge_colors)
 
         else: # For other annotation modes (Binary Classification, 3 classes, 4 classes, etc.)
 
             # Get valid classes and colors from annotation_mode_mapping
-            valid_classes = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
-            valid_colors = [self.color_mapping[class_num][0] for class_num in valid_classes]
+            valid_labels = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
+            valid_colors = [settings.COLOR_MAPPING[class_num][0] for class_num in valid_labels]
 
-            print(valid_classes)
+            # TODO: remove the print statements
+            print(valid_labels)
             print(valid_colors)
-            
-            # Get the edge colors for all bounding boxes
-            edge_colors = self.cur_shapes_layer.edge_color
-
             print(edge_colors)
 
             # Assign organoid label based on edge_color
             labels = []
-            all_valid = True  # Flag to track if all bounding boxes are valid
 
             for edge_color in edge_colors:
                 matched = False # Flag to check if the current color matches any valid color
@@ -620,19 +596,55 @@ class OrganoidCounterWidget(QWidget):
                 if not matched:
                     all_valid = False
                     break # Exit the loop early if any color is invalid
+        return labels, all_valid
+
+    def _on_save_csv_click(self): 
+        """ Is called whenever Save features button is clicked """
+        bboxes = self.viewer.layers[self.save_layer_name].data
+        if not bboxes: 
+            show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
+            return
+        
+        # Get the labels for the bounding boxes
+        labels, all_valid = self._assign_labels()
+        # If any bounding box has an invalid color, show a warning and return without saving
+        if not all_valid:
+            # If no match is found, mark as not all boxes are colored
+            show_error("Some organoids have not been assigned a valid class (null class). Please ensure all organoids are properly classified before saving.")
+            return
+        
+        # write diameters and area to csv
+        data_csv = utils.get_bbox_diameters(bboxes, 
+                                        self.viewer.layers[self.save_layer_name].properties['box_id'],
+                                        self.viewer.layers[self.save_layer_name].scale,
+                                        labels,)
+        fd = QFileDialog()
+        name, _ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
+        if name: utils.write_to_csv(name, data_csv)
+
+    def _on_save_json_click(self):
+        """ Is called whenever Save boxes button is clicked """
+        bboxes = self.viewer.layers[self.save_layer_name].data
+        #scores = #add
+        if not bboxes: 
+            show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
+            return
+        
+        # Get the labels for the bounding boxes
+        labels, all_valid = self._assign_labels()
             
-            # If any bounding box has an invalid color, show a warning and return without saving
-            if not all_valid:
-                # If no match is found, mark as not all boxes are colored
-                show_error("Some organoids have not been assigned a valid class (null class). Please ensure all organoids are properly classified before saving.")
-                return
+        # If any bounding box has an invalid color, show a warning and return without saving
+        if not all_valid:
+            # If no match is found, mark as not all boxes are colored
+            show_error("Some organoids have not been assigned a valid class (null class). Please ensure all organoids are properly classified before saving.")
+            return
 
         # Get the bounding boxes as a dictionary
         data_json = utils.get_bboxes_as_dict(bboxes, 
                                     self.viewer.layers[self.save_layer_name].properties['box_id'],
                                     self.viewer.layers[self.save_layer_name].properties['scores'],
                                     self.viewer.layers[self.save_layer_name].scale,
-                                    labels=labels)
+                                    labels,)
             
         
         # write bbox coordinates to json
@@ -699,7 +711,7 @@ class OrganoidCounterWidget(QWidget):
     def shapes_event_handler(self, event):
         """
         This function will be called every time the current shapes layer data changes
-        """        
+        """   
         # make sure this stuff isn't done if data in the layer has been changed by the sliders - only by the users
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
@@ -719,7 +731,7 @@ class OrganoidCounterWidget(QWidget):
                 new_scores[-1] = 1
     
             # set new properties to shapes layer
-            self.viewer.layers[self.cur_shapes_name].properties ={'box_id': new_ids,'scores':  new_scores}
+            self.viewer.layers[self.cur_shapes_name].properties ={'box_id': new_ids,'scores':  new_scores, }
             # refresh text displayed
             self.viewer.layers[self.cur_shapes_name].refresh()
             self.viewer.layers[self.cur_shapes_name].refresh_text()

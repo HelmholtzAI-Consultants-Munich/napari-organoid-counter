@@ -77,7 +77,7 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
                                                 'confidence': str(scores[idx]),
                                                 'scale_x': str(scales[0]),
                                                 'scale_y': str(scales[1]),
-                                                'class': labels[idx]
+                                                'label': labels[idx],
                                                 }
                         })
     return data_json
@@ -86,18 +86,18 @@ def write_to_csv(name, data):
     """ Write data to a csv file. Here data is a list of lists, where each item represents a row in the csv file. """
     with open(name, 'w') as f:
         write = csv.writer(f, delimiter=';')
-        write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]'])
+        write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]', "Label"])
         write.writerows(data)
 
-def get_bbox_diameters(bboxes, bbox_ids, scales):
-    """ Write all data, box diameters and area, ids and scale, to a list so we can later save as a csv """
+def get_bbox_diameters(bboxes, bbox_ids, scales, labels):
+    """ Write all data, box diameters and area, ids, scale and labels to a list so we can later save as a csv """
     data_csv = []
     # save diameters and area of organoids (approximated as ellipses)
-    for idx, bbox in enumerate(bboxes):
+    for idx, bbox, label in zip(bbox_ids, bboxes, labels):
         d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]
         d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
         area = math.pi * d1 * d2
-        data_csv.append([bbox_ids[idx], round(d1,3), round(d2,3), round(area,3)])
+        data_csv.append([idx, round(d1,3), round(d2,3), round(area,3), label])
     return data_csv
 
 def squeeze_img(img):
@@ -196,3 +196,15 @@ def update_version_in_mmdet_init_file(package_name, old_version, new_version):
         for line in lines:
             if f"mmcv_maximum_version = '{old_version}'" in line:
                 file.write(line.replace(old_version, new_version))
+
+def get_edge_color(labels, use_default_color: bool):
+    edge_color = []
+    if use_default_color:  # Detection-Only mode or Deterction only model
+        edge_color = [settings.COLOR_DEFAULT] * len(labels)  # Set all edges to default color (magenta)
+    else:  # For other annotation modes (Binary Classification, 3 classes, etc.)
+        for label in labels:
+            if label is -1:  # Uncertain labels in Binary Classification Mode
+                edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
+            else:
+                edge_color.append(settings.COLOR_MAPPING[label][0])  # Set edge color based on the predicted label
+    return edge_color

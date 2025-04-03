@@ -16,9 +16,9 @@ def init():
         "rtmdet (DO)":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
                     "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
                     },
-        "yolov3 (BC)": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
-                        "source": "https://zenodo.org/records/14900559/files/best_coco_bbox_mAP_epoch_2.pth"
-                        }
+        # "yolov3 (BC)": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
+        #                 "source": "https://zenodo.org/records/15129806/files/best_coco_bbox_mAP_epoch_2.pth"
+        #                 }
     }
     
     global MODELS_DIR
@@ -41,9 +41,9 @@ def init():
         "rtmdet (DO)":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
                     "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
                     },
-        "yolov3 (BC)": {"source": "https://zenodo.org/records/14900559/files/yolov3_416_organoid_two_class.py",
-                        "destination": ".mim/configs/yolo/yolov3_416_organoid_two_class.py"
-                        }
+        # "yolov3 (BC)": {"source": "https://zenodo.org/records/15129806/files/yolov3_416_organoid_two_class.py",
+        #                 "destination": ".mim/configs/yolo/yolov3_416_organoid_two_class.py"
+        #                 }
 }
     
     # Add color definitions
@@ -81,7 +81,24 @@ def init():
 
     global COLOR_CLASS_9
     COLOR_CLASS_9 = [0.3, 0.5, 1.0, 1.0]  # Light Blue
+
+    global COLOR_MAPPING
+    COLOR_MAPPING = {
+            0: (COLOR_CLASS_0, "Green"),
+            1: (COLOR_CLASS_1, "Blue"),
+            2: (COLOR_CLASS_2, "Orange"),
+            3: (COLOR_CLASS_3, "Purple"),
+            4: (COLOR_CLASS_4, "Cyan"),
+            5: (COLOR_CLASS_5, "Red"),
+            6: (COLOR_CLASS_6, "Brown"),
+            7: (COLOR_CLASS_7, "Pink"),
+            8: (COLOR_CLASS_8, "Yellow"),
+            9: (COLOR_CLASS_9, "Light Blue")
+        }
     
+    # Confidence threshold fro class assignment
+    global CONFIDENCE_THRESHOLD_CLASS 
+    CONFIDENCE_THRESHOLD_CLASS = 0.7
 
 
 

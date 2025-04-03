@@ -3,6 +3,10 @@ import numpy as np
 from napari import layers
 from pathlib import Path
 
+from napari_organoid_counter import settings
+from napari_organoid_counter._utils import get_edge_color
+
+
 readable_extensions = '.json'
 
 def get_reader(path):
@@ -22,6 +26,7 @@ def reader_function(path: str) -> layers.Shapes:
     bboxes = []
     ids = []
     scores = []
+    lables = []
     # for each box
     for key in annot.keys():
         # read coordinates
@@ -37,22 +42,25 @@ def reader_function(path: str) -> layers.Shapes:
         # and append scores and ids whihc will be used to display as text
         ids.append(int(annot[key]['box_id']))
         scores.append(float(annot[key]['confidence']))
+        lables.append(annot[key]['label'])
 
     # scale will adjust boxes according to physical resolution of image
     scale = (float(annot[key]['scale_x']), float(annot[key]['scale_y'])) # do only once
     # name of layer which will be created
     labels_name = 'Labels-'+Path(path).stem
     # properties used for dusplaying text
-    properties = {'box_id': ids,'scores': scores}
+    properties = {'box_id': ids,'scores': scores, 'labels': lables}
     text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}',
                     'size': 12,
                     'anchor': 'upper_left',}
+    # edge colors for boxes
+    edge_colors = get_edge_color(lables, False)
     layer_attributes = {'name': labels_name,
                         'scale': scale,
                         'properties': properties,
                         'text': text_params,
                         'face_color': 'transparent',  
-                        'edge_color': 'magenta',
+                        'edge_color': edge_colors,
                         'shape_type': 'rectangle',
                         'edge_width': 12
     }
