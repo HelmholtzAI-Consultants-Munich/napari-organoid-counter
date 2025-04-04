@@ -578,9 +578,9 @@ class OrganoidCounterWidget(QWidget):
             valid_colors = [settings.COLOR_MAPPING[class_num][0] for class_num in valid_labels]
 
             # TODO: remove the print statements
-            print(valid_labels)
-            print(valid_colors)
-            print(edge_colors)
+            # print(valid_labels)
+            # print(valid_colors)
+            # print(edge_colors)
 
             # Assign organoid label based on edge_color
             labels = []

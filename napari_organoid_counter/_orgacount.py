@@ -63,7 +63,6 @@ class OrganoiDL():
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         mmdet_path = os.path.dirname(mmdet.__file__)
-        print(f"mmdet_path: {mmdet_path}")
         config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
         # download the corresponding config if it doesn't exist already
         if not os.path.exists(config_dst):

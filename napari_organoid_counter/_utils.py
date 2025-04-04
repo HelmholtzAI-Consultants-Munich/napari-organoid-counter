@@ -4,6 +4,7 @@ from pathlib import Path
 import pkgutil
 
 import numpy as np
+import pandas as pd
 import math
 import json
 import csv
@@ -84,10 +85,8 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
 
 def write_to_csv(name, data):
     """ Write data to a csv file. Here data is a list of lists, where each item represents a row in the csv file. """
-    with open(name, 'w') as f:
-        write = csv.writer(f, delimiter=';')
-        write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]', "Label"])
-        write.writerows(data)
+    df = pd.DataFrame(data, columns=['OrganoidID', 'D1[um]', 'D2[um]', 'Area[um^2]', 'Label'])
+    df.to_csv(name, index=False, sep=';')
 
 def get_bbox_diameters(bboxes, bbox_ids, scales, labels):
     """ Write all data, box diameters and area, ids, scale and labels to a list so we can later save as a csv """
