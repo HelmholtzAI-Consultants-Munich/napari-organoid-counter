@@ -721,14 +721,13 @@ class OrganoidCounterWidget(QWidget):
         new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
         self._update_num_organoids(len(new_ids))
         
-        # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doesn't work
+        # check if duplicate ids - this happens when user adds a box, currently only available fix_current_properties doesn't work
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
-            if num_sim > 1: print('this should not happen!!!!!!!!!!!!!!!!!')
-            else: 
-                new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
-                new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
-                new_scores[-1] = 1
+            if num_sim > 1: RuntimeWarning("Duplicate IDs detected in the shapes layer.")
+            new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
+            new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
+            new_scores[-1] = 1
     
             # set new properties to shapes layer
             self.viewer.layers[self.cur_shapes_name].properties ={'box_id': new_ids,'scores':  new_scores, }
