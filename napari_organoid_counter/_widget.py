@@ -281,6 +281,9 @@ class OrganoidCounterWidget(QWidget):
         if len(new_shape_layer_names)>0:
             self._update_added_shapes(new_shape_layer_names)
             self.shape_layer_names.extend(new_shape_layer_names)
+            # reset edge color
+            for name in new_shape_layer_names:
+                self.viewer.layers[name].current_edge_color = settings.COLOR_DEFAULT
             
     def _removed_layer(self, event):
         """ Is called whenever a layer has been deleted (by the user) and removes the layer from GUI and backend. """
@@ -320,7 +323,7 @@ class OrganoidCounterWidget(QWidget):
 
         # Text parameters (for all models)
         text_params = {
-            'string': 'ID: {box_id}\nConf.: {scores:.2f}\nClass: {labels}', #'Conf.: {scores:.2f}',  # Exclude Label
+            'string': 'ID: {box_id}\nConf.: {scores:.2f}',
             'size': 9,
             'anchor': 'upper_left',
         }
@@ -578,9 +581,9 @@ class OrganoidCounterWidget(QWidget):
             valid_colors = [settings.COLOR_MAPPING[class_num][0] for class_num in valid_labels]
 
             # TODO: remove the print statements
-            # print(valid_labels)
-            # print(valid_colors)
-            # print(edge_colors)
+            print(valid_labels)
+            print(valid_colors)
+            print(edge_colors)
 
             # Assign organoid label based on edge_color
             labels = []
@@ -721,10 +724,10 @@ class OrganoidCounterWidget(QWidget):
         new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
         self._update_num_organoids(len(new_ids))
         
-        # check if duplicate ids - this happens when user adds a box, currently only available fix_current_properties doesn't work
+        # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doesn't work
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
-            if num_sim > 1: RuntimeWarning("Duplicate IDs detected in the shapes layer.")
+            if num_sim > 1:  RuntimeWarning('At least one duplicate Box ID found.')
             new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
             new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
             new_scores[-1] = 1
