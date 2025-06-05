@@ -42,7 +42,13 @@ def reader_function(path: str) -> layers.Shapes:
         # and append scores and ids whihc will be used to display as text
         ids.append(int(annot[key]['box_id']))
         scores.append(float(annot[key]['confidence']))
-        lables.append(annot[key]['label'])
+        if 'label' in annot[key]:
+            # if label is present, append it
+            lables.append(annot[key]['label'])
+        else:
+            # if not, append a default label
+            # this is useful for models trained on only one class
+            lables.append(-1)
 
     # scale will adjust boxes according to physical resolution of image
     scale = (float(annot[key]['scale_x']), float(annot[key]['scale_y'])) # do only once
