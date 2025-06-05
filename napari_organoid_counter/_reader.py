@@ -42,7 +42,7 @@ def reader_function(path: str) -> layers.Shapes:
         # and append scores and ids whihc will be used to display as text
         ids.append(int(annot[key]['box_id']))
         scores.append(float(annot[key]['confidence']))
-        if 'label' in annot[key]:
+        if 'label' in annot[key].keys():
             # if label is present, append it
             lables.append(annot[key]['label'])
         else:
