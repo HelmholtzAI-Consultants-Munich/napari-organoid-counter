@@ -93,9 +93,9 @@ def get_bbox_diameters(bboxes, bbox_ids, scales, labels):
     data_csv = []
     # save diameters and area of organoids (approximated as ellipses)
     for idx, bbox, label in zip(bbox_ids, bboxes, labels):
-        d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]
-        d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
-        area = math.pi * d1 * d2
+        d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]  # X direction (width)
+        d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]  # Y direction (height)
+        area = math.pi * d1 * d2 / 4  # divide by 4 because d1 and d2 are full diameters, not semi-axes
         data_csv.append([idx, round(d1,3), round(d2,3), round(area,3), label])
     return data_csv
 
@@ -202,7 +202,7 @@ def get_edge_color(labels, use_default_color: bool):
         edge_color = [settings.COLOR_DEFAULT] * len(labels)  # Set all edges to default color (magenta)
     else:  # For other annotation modes (Binary Classification, 3 classes, etc.)
         for label in labels:
-            if label is -1:  # Uncertain labels in Binary Classification Mode
+            if int(label) == -1:  # Uncertain labels in Binary Classification Mode
                 edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
             else:
                 edge_color.append(settings.COLOR_MAPPING[label][0])  # Set edge color based on the predicted label
