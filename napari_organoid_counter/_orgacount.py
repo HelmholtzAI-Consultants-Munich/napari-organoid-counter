@@ -129,8 +129,7 @@ class OrganoiDL():
                 # get predictions
                 output = self.model(img_crop)
                 preds = output['predictions'][0]['bboxes']
-                if len(preds)==0: continue
-                else:
+                if len(preds)!=0:
                     for bbox_id in range(len(preds)):
                         y1, x1, y2, x2 = preds[bbox_id] # predictions from model will be in form x1,y1,x2,y2
                         x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
@@ -188,6 +187,16 @@ class OrganoiDL():
                                                  bboxes,
                                                  scores, 
                                                  labels)
+        
+        # if no predictions, store empty tensors so that downstream code still works
+        if len(bboxes) == 0:
+            self.pred_bboxes[shapes_name] = torch.empty((0, 4))
+            self.pred_scores[shapes_name] = torch.empty((0,))
+            self.pred_labels[shapes_name] = torch.empty((0,), dtype=torch.long)
+            self.pred_ids[shapes_name] = []
+            self.next_id[shapes_name] = 1
+            return
+
         # stack results
         bboxes = torch.stack(bboxes)
         scores = torch.Tensor(scores)
@@ -230,6 +239,9 @@ class OrganoiDL():
         result_scores = self.pred_scores[shapes_name][keep]
         result_labels = self.pred_labels[shapes_name][keep]
         result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
+
+        # Ensure next_id remains monotonic by setting it to one higher than the max kept ID
+        self.next_id[shapes_name] = max(self.pred_ids[shapes_name]) + 1
 
         return result_bboxes, result_scores, result_labels, result_ids
 
@@ -305,7 +317,9 @@ class OrganoiDL():
         """ Updates the next id to append to result dicts. If input c is given then that will be the next id. """
         if c!=0:
             self.next_id[shapes_name] = c
-        else: self.next_id[shapes_name] += 1
+        else: 
+            # Reset next_id to one higher than the current max ID (or 1 if no boxes remain)
+            self.next_id[shapes_name] = max(self.pred_ids[shapes_name], default=0) + 1
 
     def remove_shape_from_dict(self, shapes_name):
         """ Removes results of shapes_name from all result dicts. """
