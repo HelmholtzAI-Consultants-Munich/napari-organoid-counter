@@ -1,4 +1,5 @@
 from typing import List
+import math
 
 from skimage.io import imsave
 from datetime import datetime
@@ -11,7 +12,11 @@ from napari.utils.notifications import show_info, show_error, show_warning
 import numpy as np
 
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, QSlider
+from qtpy.QtWidgets import (
+    QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
+    QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
+    QSlider, QCheckBox, QScrollArea
+)
 
 from napari_organoid_counter._orgacount import OrganoiDL
 from napari_organoid_counter import _utils as utils
@@ -102,19 +107,18 @@ class OrganoidCounterWidget(QWidget):
         # Annotation Mode 
         self.annotation_mode = 0 # Default to Detection Only mode (0)
 
-        # Mapping annotation modes to number of classes
+        # Mapping annotation modes to names and valid class sets
         self.annotation_mode_mapping = {
             0: {"name": "Detection Only (DO)", "classes": {0}},
             1: {"name": "Binary Classification (BC)", "classes": {0, 1}},
-            2: {"name": "3 Classes", "classes": {0, 1, 2}},
-            3: {"name": "4 Classes", "classes": {0, 1, 2, 3}},
-            4: {"name": "5 Classes", "classes": {0, 1, 2, 3, 4}},
-            5: {"name": "6 Classes", "classes": {0, 1, 2, 3, 4, 5}},
-            6: {"name": "7 Classes", "classes": {0, 1, 2, 3, 4, 5, 6}},
-            7: {"name": "8 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7}},
-            8: {"name": "9 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7, 8}},
-            9: {"name": "10 Classes", "classes": {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
         }
+
+        # Auto-generate mappings for 3 to 10 classes
+        for n in range(2, 10):
+            self.annotation_mode_mapping[n] = {
+                "name": f"{n+1} Classes",
+                "classes": set(range(n+1)),
+            }
 
         # Mapping class numbers to colors
         self.color_mapping = {
@@ -130,7 +134,13 @@ class OrganoidCounterWidget(QWidget):
             9: (settings.COLOR_CLASS_9, "Light Blue")
         }
 
-        self.selected_classes = set() # Set of currently active classes for annotation
+        self.selected_classes = self.annotation_mode_mapping[self.annotation_mode]["classes"]  # active class set for current mode
+        self.class_count_labels: dict[int, QLabel] = {}  # per-class count labels in legend
+        self.class_checkboxes: dict[int, QCheckBox] = {}   # per-class filter checkboxes
+        self.master_class_checkbox: QCheckBox | None = None  # "All classes" toggle checkbox
+        self.visible_classes_filter: set[int] = set(self.selected_classes)  # start with all visible
+        self._hover_idx: int | None = None  # current hovered box index
+        self._hover_base: str = ""  # cached static hover message (ID, diameters, etc.)
 
         # setup gui        
         self.setLayout(QVBoxLayout())
@@ -155,12 +165,11 @@ class OrganoidCounterWidget(QWidget):
         self.confidence_slider_changed = False
 
         # Key binding to reset the edge_color of selected bounding boxes to the original magenta color
-        @self.viewer.bind_key('m')
+        @self.viewer.bind_key('m', overwrite=True)
         def change_to_original_color(viewer: napari.Viewer):
             if self.cur_shapes_layer is not None:  # Ensure shapes layer exists
                 selected_shapes = self.cur_shapes_layer.selected_data
                 if len(selected_shapes) > 0:
-                    current_edge_colors = self.cur_shapes_layer.edge_color
                     # Modify the edge color only for the selected shapes
                     current_edge_colors = self.cur_shapes_layer.edge_color
                     for idx in selected_shapes:
@@ -168,8 +177,13 @@ class OrganoidCounterWidget(QWidget):
                         current_edge_colors[idx] = settings.COLOR_DEFAULT
                     self.cur_shapes_layer.edge_color = current_edge_colors  # Apply the changes
                     show_info(f"Reset edge color of {list(selected_shapes)} to magenta.")
+                    self._refresh_class_counts()
                 else:
                     show_warning("No shapes selected to reset edge color.")
+
+        # Activate key bindings for class-color shortcuts
+        self.update_key_bindings()
+        self._setup_mouse_callback()
 
     def update_key_bindings(self):
         """ Update key bindings based on selected classes """            
@@ -237,6 +251,8 @@ class OrganoidCounterWidget(QWidget):
             # Apply the updated colors back to the layer
             self.cur_shapes_layer.edge_color = current_edge_colors
             show_info(f"Changed edge color of shapes {list(selected_shapes)} to {settings.COLOR_MAPPING[class_num][1]}.") # Print color name
+            self._apply_class_filter()
+            self._refresh_class_counts()
         else:
             show_warning(f"Class {class_num} has no associated color.")  
 
@@ -268,6 +284,8 @@ class OrganoidCounterWidget(QWidget):
             # update confidence text and slider with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
             self.confidence_textbox.setText(str(self.confidence))
+            self._hover_idx = None
+            self._hover_base = ""
 
     def _added_layer(self, event):
         # get names of added layers, image and shapes
@@ -362,7 +380,10 @@ class OrganoidCounterWidget(QWidget):
                             
             # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
             self.viewer.layers[labels_layer_name].current_edge_width = 12
-            
+        
+        self._apply_class_filter()
+        self._refresh_class_counts()
+
     def _on_preprocess_click(self):
         """ Is called whenever preprocess button is clicked """
         if not self.image_layer_name: show_info('Please load an image first and try again!')
@@ -426,6 +447,9 @@ class OrganoidCounterWidget(QWidget):
                            self.downsampling,
                            self.window_overlap)
         
+        raw_total = self.organoiDL.pred_bboxes[labels_layer_name].size(0)
+        print(f"Backend detected {raw_total} boxes (before any filtering).")
+
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, labels, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter, self.model_name)
         # hide activcity dock on completion
@@ -468,20 +492,31 @@ class OrganoidCounterWidget(QWidget):
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
         # check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids        
-        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.cur_shapes_layer.scale)
-        self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
+        if self.organoiDL.img_scale[0]==0: 
+            self.organoiDL.set_scale(self.cur_shapes_layer.scale)
+        # self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
+        # box_ids = self.cur_shapes_layer.properties['box_id']
+        # next_id_val = (int(box_ids.max()) + 1) if box_ids.size else 1
+        # self.organoiDL.update_next_id(self.cur_shapes_name, next_id_val)
         
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
         with utils.set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
+            labels_prop = self.cur_shapes_layer.properties.get(
+                'labels',
+                [-1] * len(self.cur_shapes_layer.data)
+            )            
             # first update bboxes in organoiDLin case user has added/removed
             self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                                 self.cur_shapes_layer.data, 
                                                 self.cur_shapes_layer.properties['scores'],
-                                                self.cur_shapes_layer.properties['labels'],
+                                                labels_prop,
                                                 self.cur_shapes_layer.properties['box_id'])
             # and get new boxes, scores and box ids based on new confidence and min_diameter values 
             bboxes, scores, labels, box_ids = self.organoiDL.apply_params(self.cur_shapes_name, self.confidence, self.min_diameter, self.model_name)
             self._update_vis_bboxes(bboxes, scores, labels, box_ids, self.cur_shapes_name)
+            self._apply_class_filter()
+            self._refresh_class_counts()
+            self.organoiDL.update_next_id(self.cur_shapes_name)   # keep counter monotonic
 
     def _on_diameter_slider_changed(self):
         """ Is called whenever user changes the Minimum Diameter slider """
@@ -562,6 +597,7 @@ class OrganoidCounterWidget(QWidget):
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
+        self._refresh_color_mapping_box()
     
     def _assign_labels(self):
         """ Assign labels to the bounding boxes based on their edge colors.
@@ -579,11 +615,6 @@ class OrganoidCounterWidget(QWidget):
             # Get valid classes and colors from annotation_mode_mapping
             valid_labels = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
             valid_colors = [settings.COLOR_MAPPING[class_num][0] for class_num in valid_labels]
-
-            # TODO: remove the print statements
-            print(valid_labels)
-            print(valid_colors)
-            print(edge_colors)
 
             # Assign organoid label based on edge_color
             labels = []
@@ -663,7 +694,7 @@ class OrganoidCounterWidget(QWidget):
         for layer_name in added_items:
             self.image_layer_selection.addItem(layer_name)
             self.original_images[layer_name] = self.viewer.layers[layer_name].data
-            self.original_contrast[layer_name] = self.viewer.layers[self.image_layer_name].contrast_limits
+            self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
 
     def _update_removed_image(self, removed_layers):
@@ -677,6 +708,63 @@ class OrganoidCounterWidget(QWidget):
             del self.original_images[removed_layer]
             del self.original_contrast[removed_layer]
 
+    def _setup_mouse_callback(self):
+        """Set up a mouse move callback to display box IDs in the status bar."""
+        @self.viewer.mouse_move_callbacks.append
+        def mouse_move_callback(viewer, event):
+            if self.cur_shapes_layer is None:
+                self._hover_idx = None
+                self._hover_base = ""
+                return
+
+            layer = self.cur_shapes_layer
+            pos_data = layer.world_to_data(event.position)
+            value = layer.get_value(pos_data)
+
+            # If there's no shape under cursor, clear cached index and return
+            if value is None or value[0] is None:
+                self._hover_idx = None
+                self._hover_base = ""
+                return
+
+            # Get shape index and properties
+            idx = value[0]
+
+            # Recompute the static part ONLY when entering a new box
+            if idx != self._hover_idx:
+                props = layer.properties
+                n = len(layer.data)
+                box_id = props.get('box_id', [None]*n)[idx]
+                scores = props.get('scores', [None]*n)
+                score = scores[idx] if idx < len(scores) else None
+                score_txt = f", Conf.: {score:.2f}" if score is not None else ""
+
+                bbox = layer.data[idx]                     # [[x1,y1],[x1,y2],[x2,y2],[x2,y1]]
+                sx, sy = layer.scale
+                d1 = abs(bbox[2][0] - bbox[0][0]) * sx     # µm
+                d2 = abs(bbox[2][1] - bbox[0][1]) * sy     # µm
+                area = math.pi * d1 * d2 / 4               # µm²
+
+                self._hover_base = (
+                    f"Organoid ID: {box_id}{score_txt}, "
+                    f"d1={d1:.1f} µm, d2={d2:.1f} µm, area={area:.1f} µm² | Coordinates:"
+                )
+                self._hover_idx = idx
+
+            # Always update only the coords while staying in the same box
+            coords_only = f"[{int(event.position[0])} {int(event.position[1])}]"
+            status = dict(viewer.status)
+
+            status.update({
+                'source_type': 'plugin',     # tell Napari to show the plugin message
+                'plugin': self._hover_base,  # unchanged while inside the box
+                'layer_base': '',            # blank default layer message
+                'help': '',                  # blank help/hints that can override
+                'coordinates': coords_only,  #     live coords
+            })
+
+            viewer.status = status
+
     def _update_added_shapes(self, added_items):
         """
         Update the selection box by shape layer names if it they have been added, update current working shape layer and instantiate OrganoiDL if not already there
@@ -688,16 +776,25 @@ class OrganoidCounterWidget(QWidget):
         self.save_layer_name = added_items[0]
         self.cur_shapes_name = added_items[0]
         self.cur_shapes_layer = self.viewer.layers[self.cur_shapes_name] 
+        # self.cur_shapes_layer.events.highlight.connect(self._on_shape_hover)
+
         # get the bounding box and update the displayed number of organoids
         self._update_num_organoids(len(self.cur_shapes_layer.data)) 
+        labels_prop = self.cur_shapes_layer.properties.get(
+            'labels',
+            [-1] * len(self.cur_shapes_layer.data)
+        )        
         # listen for a data change in the current shapes layer
         self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                             self.cur_shapes_layer.data,
                                             self.cur_shapes_layer.properties['scores'],
-                                            self.cur_shapes_layer.properties['labels'],
+                                            labels_prop,
                                             self.cur_shapes_layer.properties['box_id']
                                             )
         self.cur_shapes_layer.events.data.connect(self.shapes_event_handler)
+        self._apply_class_filter()
+        self._refresh_class_counts()
+        self.organoiDL.update_next_id(self.cur_shapes_name)
         
     def _update_remove_shapes(self, removed_layers):
         """
@@ -710,6 +807,9 @@ class OrganoidCounterWidget(QWidget):
             if removed_layer==self.cur_shapes_name: 
                 self._update_num_organoids(0)
                 self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
+
+        self._apply_class_filter()
+        self._refresh_class_counts()
 
     def shapes_event_handler(self, event):
         """
@@ -724,22 +824,38 @@ class OrganoidCounterWidget(QWidget):
         new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
         self._update_num_organoids(len(new_ids))
         
-        # check if duplicate ids - this happens when user adds a box, currently only available fix current_properties doesn't work
+        # check if duplicate ids - this happens when user adds a box
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
             if num_sim > 1:  RuntimeWarning('At least one duplicate Box ID found.')
             new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
             new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
-            new_scores[-1] = 1
+            new_scores[-1] = 1  # give new box score = 1
     
             # set new properties to shapes layer
-            self.viewer.layers[self.cur_shapes_name].properties ={'box_id': new_ids,'scores':  new_scores, }
+            self.viewer.layers[self.cur_shapes_name].properties = {'box_id': new_ids, 'scores': new_scores}
             # refresh text displayed
             self.viewer.layers[self.cur_shapes_name].refresh()
             self.viewer.layers[self.cur_shapes_name].refresh_text()
+
+            labels_prop = self.viewer.layers[self.cur_shapes_name].properties.get(
+                'labels', [-1] * len(self.cur_shapes_layer.data)
+            )
+            self.organoiDL.update_bboxes_scores(
+                self.cur_shapes_name,
+                self.cur_shapes_layer.data,
+                new_scores,
+                labels_prop,
+                new_ids,
+            )
+
             # and update the OrganoiDL instance
             self.organoiDL.update_next_id(self.cur_shapes_name)
         
+        self._apply_class_filter()
+        self._refresh_class_counts()
+
+
         # this doesn't work!!!!
         # the problem is that the event is called once before the drawing has been completed!!!!!!
         #new_bboxes = self.cur_shapes_layer.data
@@ -779,16 +895,22 @@ class OrganoidCounterWidget(QWidget):
         self.organoid_number_label = QLabel('Number of organoids: '+str(self.num_organoids), self)
         self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         # and add all these to the layout
-        output_widget = QGroupBox('Parameters and outputs')
+        self.output_widget = QGroupBox('Parameters and outputs')
         vbox = QVBoxLayout()
         vbox.addLayout(self._setup_min_diameter_box())
         vbox.addLayout(self._setup_confidence_box() )
+        if self.annotation_mode != 0:
+            # vbox.addWidget(self._setup_color_mapping_box())
+            self.legend_box = self._setup_color_mapping_box()  # keep reference
+            vbox.addWidget(self.legend_box)
+        else:
+            self.legend_box = None
         vbox.addWidget(self.organoid_number_label)
         vbox.addLayout(self._setup_reset_box())
         vbox.addLayout(self._setup_save_box())
         
-        output_widget.setLayout(vbox)
-        return output_widget
+        self.output_widget.setLayout(vbox)
+        return self.output_widget
 
     def _setup_input_box(self):
         """
@@ -993,6 +1115,201 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(self.confidence_textbox, 1)
         hbox.addWidget(self.confidence_slider, 6)
         return hbox
+
+    def _setup_color_mapping_box(self) -> QGroupBox:
+        """Build the legend with live counts, per-class check-boxes and a scroll-bar."""
+        self.class_count_labels   = {}
+        self.class_checkboxes     = {}
+        self.visible_classes_filter = set(self.selected_classes)
+
+        outer = QGroupBox("Class-color mapping")
+        outer_layout = QVBoxLayout(outer)
+
+        # master “all classes” check-box
+        master_row = QHBoxLayout()
+        self.master_class_checkbox = QCheckBox("All classes")
+        self.master_class_checkbox.setChecked(True)
+        self.master_class_checkbox.toggled.connect(self._on_master_class_toggled)
+        master_row.addWidget(self.master_class_checkbox)
+        master_row.addStretch(1)
+        outer_layout.addLayout(master_row)
+
+        # scroll area that will hold the per-class rows
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # only vertical
+        scroll.setFixedHeight(160)          # ≈ 4 rows; tweak if needed
+
+        inner = QWidget()
+        inner_layout = QVBoxLayout(inner)
+
+        for cls in sorted(self.selected_classes):
+            rgba, name = self.color_mapping[cls]
+            r, g, b, a = (int(c * 255) for c in rgba)
+
+            swatch = QLabel()
+            swatch.setFixedSize(18, 18)
+            swatch.setStyleSheet(
+                f"background-color: rgba({r},{g},{b},{a});"
+                "border: 1px solid black;"
+            )
+
+            label = QLabel()
+            self.class_count_labels[cls] = label
+            self._update_single_class_label(cls)
+
+            cb = QCheckBox()
+            cb.setChecked(True)
+            cb.toggled.connect(lambda checked, c=cls: self._on_class_checkbox_toggled(c, checked))
+            self.class_checkboxes[cls] = cb
+
+            row = QHBoxLayout()
+            row.addWidget(cb)
+            row.addWidget(swatch)
+            row.addWidget(label)
+            row.addStretch(1)
+            inner_layout.addLayout(row)
+
+        inner_layout.addStretch(1)
+        scroll.setWidget(inner)
+        outer_layout.addWidget(scroll)
+
+        return outer
+
+    def _refresh_color_mapping_box(self):
+        """
+        Refresh the color mapping box based on the current annotation mode.
+        """
+        layout = self.output_widget.layout()
+
+        # remove existing legend box from layout (if any)
+        if self.legend_box is not None:
+            layout.removeWidget(self.legend_box)
+            self.legend_box.deleteLater()
+            self.legend_box = None
+
+        # Detection-Only → nothing further
+        if self.annotation_mode == 0:
+            return
+
+        # Build a new one reflecting the current annotation mode
+        self.legend_box = self._setup_color_mapping_box()
+
+        # Re-insert it *immediately after* the confidence box
+        self.output_widget.layout().insertWidget(
+            self.output_widget.layout().indexOf(self.confidence_slider.parentWidget()) + 1,
+            self.legend_box
+        )
+
+        self._apply_class_filter()
+        self._refresh_class_counts()
+
+    def _update_single_class_label(self, cls: int) -> None:
+        """Update the legend row for one class with its current (visible) box-count."""
+        if cls not in self.class_count_labels:
+            return  # legend not built yet
+
+        if self.cur_shapes_layer is None:
+            count = 0
+        else:
+            colors = np.asarray(self.cur_shapes_layer.edge_color)         # (N,4)
+            if colors.size == 0:
+                count = 0
+            else:
+                rgb    = colors[:, :3]
+                # alpha  = colors[:, 3]
+                target = np.array(self.color_mapping[cls][0][:3])         # (3,)
+                mask   = np.all(np.isclose(rgb, target, atol=1e-2), axis=1)  #& (alpha > 1e-3)
+                count  = int(mask.sum())
+
+        name = self.color_mapping[cls][1]
+        self.class_count_labels[cls].setText(f"Class {cls} ({name}): {count}")
+
+    def _refresh_class_counts(self) -> None:
+        """Recompute every class row in the legend."""
+        for cls in self.class_count_labels:
+            self._update_single_class_label(cls)
+
+    def _current_visible_classes(self) -> set[int]:
+        """Return the set of classes currently ticked."""
+        # Derive from checkboxes if they exist; otherwise fall back to 'all'
+        if not self.class_checkboxes:
+            return set(self.selected_classes)
+        return {c for c, cb in self.class_checkboxes.items() if cb.isChecked()}
+
+    def _on_master_class_toggled(self, checked: bool) -> None:
+        """Master checkbox toggled — set all class checkboxes accordingly."""
+        # Prevent signal cascade while we sync children
+        for cb in self.class_checkboxes.values():
+            cb.blockSignals(True)
+            cb.setChecked(checked)
+            cb.blockSignals(False)
+
+        self.visible_classes_filter = set(self.selected_classes) if checked else set()
+        self._apply_class_filter()
+        self._refresh_class_counts()
+
+    def _on_class_checkbox_toggled(self, cls: int, checked: bool) -> None:
+        """A per-class checkbox toggled."""
+        self.visible_classes_filter = self._current_visible_classes()
+
+        # Update master state (checked only if all are checked)
+        all_checked = len(self.visible_classes_filter) == len(self.selected_classes)
+        if self.master_class_checkbox is not None:
+            self.master_class_checkbox.blockSignals(True)
+            self.master_class_checkbox.setChecked(all_checked)
+            self.master_class_checkbox.blockSignals(False)
+
+        self._apply_class_filter()
+        self._refresh_class_counts()
+
+    def _apply_class_filter(self) -> None:
+        """Show/hide shapes by class without changing data or recomputing.
+        We set edge alpha to 0 for hidden classes and blank their text."""
+        if self.annotation_mode == 0:
+            return  # Detection-only: no class filtering UI
+        if self.cur_shapes_layer is None:
+            return
+
+        colors = np.asarray(self.cur_shapes_layer.edge_color).copy()  # (N,4)
+        if colors.size == 0:
+            return
+
+        # Determine the class of each shape from its edge colour (RGB)
+        rgb = colors[:, :3]
+        alpha_out = np.ones(len(colors), dtype=float)
+
+        # Hide shapes whose class is NOT selected
+        for cls in self.selected_classes:
+            target = np.array(self.color_mapping[cls][0][:3])
+            matches = np.all(np.isclose(rgb, target, atol=1e-2), axis=1)
+            if cls not in self.visible_classes_filter:
+                alpha_out[matches] = 0.0  # hide
+            else:
+                alpha_out[matches] = 1.0  # show
+
+        # Apply new alpha to the edges
+        colors[:, 3] = alpha_out
+        self.cur_shapes_layer.edge_color = colors
+
+        # Build per-shape text strings (blank for hidden)
+        props = self.cur_shapes_layer.properties
+        box_ids = props.get('box_id', [])
+        scores  = props.get('scores', [])
+        # Napari supports list/array of strings for per-shape text
+        text_strings = []
+        for i in range(len(colors)):
+            if alpha_out[i] > 1e-3 and i < len(box_ids) and i < len(scores):
+                text_strings.append(f"ID: {int(box_ids[i])}\nConf.: {float(scores[i]):.2f}")
+            else:
+                text_strings.append("")  # hide text
+
+        # Assign per-shape text
+        self.cur_shapes_layer.text = {
+            'string': text_strings,
+            'size': 9,
+            'anchor': 'upper_left',
+        }
 
     def _setup_reset_box(self):
         """
