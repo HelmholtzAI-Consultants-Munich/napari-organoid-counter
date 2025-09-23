@@ -16,6 +16,9 @@ def init():
         "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
                     "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
                     },
+        "yolov3-onnx": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
+                   "source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx"
+                   },
     }
     
     global MODELS_DIR

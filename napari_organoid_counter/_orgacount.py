@@ -6,6 +6,8 @@ from napari_organoid_counter import settings
 
 #update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import torch
+
+import onnxruntime as ort
 import mmdet
 from mmdet.apis import DetInferencer
 
@@ -46,6 +48,9 @@ class OrganoiDL():
         self.cur_min_diam = 30
 
         self.model = None
+        self.model_type = 'mmdet'
+        self.input_name = None
+        self.output_names = None
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
@@ -60,12 +65,19 @@ class OrganoiDL():
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
-        mmdet_path = os.path.dirname(mmdet.__file__)
-        config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
-        # download the corresponding config if it doesn't exist already
-        if not os.path.exists(config_dst):
-            urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
-        self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
+        if model_checkpoint.endswith('.onnx'):
+            self.model = ort.InferenceSession(model_checkpoint, providers=["CPUExecutionProvider"])
+            # Get input/output names
+            self.model_type = 'onnx'
+            self.input_name = self.model.get_inputs()[0].name
+            self.output_names = [o.name for o in self.model.get_outputs()]
+        else:
+            mmdet_path = os.path.dirname(mmdet.__file__)
+            config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
+            # download the corresponding config if it doesn't exist already
+            if not os.path.exists(config_dst):
+                urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
+            self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
 
     def download_model(self, model_name='yolov3'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
@@ -116,21 +128,38 @@ class OrganoiDL():
         '''
         for i in progress(range(0, prepadded_height, step)):
             for j in progress(range(0, prepadded_width, step)):
-                # crop
-                img_crop = test_img[i:(i+window_size), j:(j+window_size)]
-                # get predictions
-                output = self.model(img_crop)
-                preds = output['predictions'][0]['bboxes']
-                if len(preds)==0: continue
+                if self.model_type=='onnx':
+                    img_crop = test_img[:,:,i:(i+window_size), j:(j+window_size)]
+                    # Run inference
+                    outputs = self.model.run(self.output_names, {self.input_name: img_crop})
+                    dets, _ = outputs # dets, labels 
+                    dets = dets[0]
+                    if dets.shape[1]==0: continue
+                    else:
+                        for bbox_id in range(dets.shape[1]):
+                            y1, x1, y2, x2, score = dets[bbox_id]
+                            x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
+                            x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
+                            y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
+                            y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
+                            pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
+                            scores_list.append(score)
                 else:
-                    for bbox_id in range(len(preds)):
-                        y1, x1, y2, x2 = preds[bbox_id] # predictions from model will be in form x1,y1,x2,y2
-                        x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
-                        x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
-                        y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
-                        y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
-                        pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
-                        scores_list.append(output['predictions'][0]['scores'][bbox_id])
+                # crop
+                    img_crop = test_img[i:(i+window_size), j:(j+window_size)]
+                    # get predictions
+                    output = self.model(img_crop)
+                    preds = output['predictions'][0]['bboxes']
+                    if len(preds)==0: continue
+                    else:
+                        for bbox_id in range(len(preds)):
+                            y1, x1, y2, x2 = preds[bbox_id] # predictions from model will be in form x1,y1,x2,y2
+                            x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
+                            x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
+                            y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
+                            y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
+                            pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
+                            scores_list.append(output['predictions'][0]['scores'][bbox_id])
         return pred_bboxes, scores_list
 
     def run(self, 
@@ -164,10 +193,17 @@ class OrganoiDL():
             window_size = round(window_size * rescale_factor)
             step = round(window_size * window_overlap)
             # prepare image for model - norm, tensor, etc.
-            ready_img, prepadded_height, prepadded_width  = prepare_img(img,
-                                                                        step,
-                                                                        window_size,
-                                                                        rescale_factor)
+            if self.model_type=='onnx':
+
+                ready_img, prepadded_height, prepadded_width  = prepare_img_onnx(img,
+                                                                            step,
+                                                                            window_size,
+                                                                            rescale_factor)
+            else:
+                ready_img, prepadded_height, prepadded_width  = prepare_img(img,
+                                                                            step,
+                                                                            window_size,
+                                                                            rescale_factor)          
             # and run sliding window over whole image
             bboxes, scores = self.sliding_window(ready_img,
                                                  step,

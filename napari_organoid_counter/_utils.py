@@ -104,6 +104,33 @@ def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
     return np.squeeze(img)
 
+
+def prepare_img_onnx(test_img, step, window_size, rescale_factor):
+    """ The original image is prepared for running model inference """
+    # squeeze and resize image
+    test_img = squeeze_img(test_img)
+    test_img = rescale(test_img, rescale_factor, preserve_range=True)
+    img_height, img_width = test_img.shape
+    # pad image
+    pad_x = (img_height//step)*step + window_size - img_height
+    pad_y = (img_width//step)*step + window_size - img_width
+    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='edge')
+    # normalise and convert to RGB - model input has size 3
+    test_img = (test_img-np.min(test_img))/(np.max(test_img)-np.min(test_img)) 
+    test_img = (255*test_img).astype(np.uint8)
+    test_img = gray2rgb(test_img) #[H,W,C]
+
+    # convert from RGB to GBR - expected from DetInferencer 
+    test_img = test_img[..., ::-1] 
+
+    test_img = test_img.astype(np.float32) / 255.0
+    # HWC -> CHW
+    test_img = np.transpose(test_img, (2, 0, 1))
+    # Add batch dimension
+    test_img = np.expand_dims(test_img, axis=0)
+    
+    return test_img, img_height, img_width
+
 def prepare_img(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
     # squeeze and resize image
