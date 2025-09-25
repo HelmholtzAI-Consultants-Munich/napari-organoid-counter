@@ -4,10 +4,11 @@ from napari.utils import progress
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
 
-#update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import torch
-
 import onnxruntime as ort
+
+ # to remove
+ #update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import mmdet
 from mmdet.apis import DetInferencer
 
@@ -22,8 +23,10 @@ class OrganoiDL():
             The confidence threshold of the model
         cur_min_diam: float
             The minimum diameter of the organoids
-        model: frcnn
-            The Faster R-CNN model
+        model: ort.InferenceSession
+            The detection model loaded from an onnx checkpoint
+        model_expect_size: tuple
+            The size of the input image the model expects
         img_scale: list of floats
             A list holding the image resolution in x and y
         pred_bboxes: dict
@@ -48,7 +51,8 @@ class OrganoiDL():
         self.cur_min_diam = 30
 
         self.model = None
-        self.model_type = 'mmdet'
+        self.model_type = 'mmdet' # to remove
+        self.model_expect_size = (416, 416)
         self.input_name = None
         self.output_names = None
         self.img_scale = [0., 0.]
@@ -67,6 +71,9 @@ class OrganoiDL():
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         if model_checkpoint.endswith('.onnx'):
             self.model = ort.InferenceSession(model_checkpoint, providers=["CPUExecutionProvider"])
+            '''
+            ["CUDAExecutionProvider", "CoreMLExecutionProvider", "CPUExecutionProvider"])
+            '''
             # Get input/output names
             self.model_type = 'onnx'
             self.input_name = self.model.get_inputs()[0].name
@@ -78,6 +85,7 @@ class OrganoiDL():
             if not os.path.exists(config_dst):
                 urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
             self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
+            self.model_type = 'mmdet'
 
     def download_model(self, model_name='yolov3'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
@@ -126,10 +134,15 @@ class OrganoiDL():
             The  resulting confidence scores of the model for the predicted boxes are appended here 
             Same as pred_bboxes, can be empty on first run but stores results of all runs.
         '''
+
+        resize_factor_x = window_size / self.model_expect_size[0]
+        resize_factor_y = window_size / self.model_expect_size[1]
+        # go across entire image using slidding window approach with a given window size and step
         for i in progress(range(0, prepadded_height, step)):
             for j in progress(range(0, prepadded_width, step)):
                 if self.model_type=='onnx':
                     img_crop = test_img[:,:,i:(i+window_size), j:(j+window_size)]
+                    img_crop = resize_keep_ratio_numpy(img_crop, self.model_expect_size)
                     # Run inference
                     outputs = self.model.run(self.output_names, {self.input_name: img_crop})
                     dets, _ = outputs # dets, labels 
@@ -138,6 +151,10 @@ class OrganoiDL():
                     else:
                         for bbox_id in range(dets.shape[1]):
                             y1, x1, y2, x2, score = dets[bbox_id]
+                            x1 *= resize_factor_x
+                            x2 *= resize_factor_x
+                            y1 *= resize_factor_y
+                            y2 *= resize_factor_y
                             x1_real = torch.div(x1+i, rescale_factor, rounding_mode='floor')
                             x2_real = torch.div(x2+i, rescale_factor, rounding_mode='floor')
                             y1_real = torch.div(y1+j, rescale_factor, rounding_mode='floor')
@@ -194,7 +211,6 @@ class OrganoiDL():
             step = round(window_size * window_overlap)
             # prepare image for model - norm, tensor, etc.
             if self.model_type=='onnx':
-
                 ready_img, prepadded_height, prepadded_width  = prepare_img_onnx(img,
                                                                             step,
                                                                             window_size,

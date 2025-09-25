@@ -7,7 +7,7 @@ import numpy as np
 import math
 import json
 import csv
-from skimage.transform import rescale
+from skimage.transform import rescale, resize
 from skimage.color import gray2rgb
 
 import torch
@@ -104,6 +104,38 @@ def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
     return np.squeeze(img)
 
+def resize_keep_ratio_numpy(img, scale=(416, 416)):
+    """
+    Resize a numpy array [B, C, H, W] keeping aspect ratio using skimage.
+
+    Args:
+        img (np.ndarray): shape [B, C, H, W]
+        scale (tuple): target maximum (w, h), e.g. (416, 416)
+
+    Returns:
+        np.ndarray: resized array [B, C, new_h, new_w]
+        (int, int): new size (new_h, new_w)
+        float: scale factor
+    """
+    assert img.ndim == 4, "Expected input shape [B, C, H, W]"
+    B, C, H, W = img.shape
+    target_w, target_h = scale
+
+    # compute scale factor
+    scale_factor = min(target_w / W, target_h / H)
+    new_w, new_h = int(W * scale_factor), int(H * scale_factor)
+
+    resized_batch = []
+    for i in range(B):
+        # [C, H, W] → [H, W, C]
+        img_hwc = np.transpose(img[i], (1, 2, 0))
+        resized = resize(img_hwc, (new_h, new_w), order=1, anti_aliasing=True)
+        # back to [C, H, W]
+        resized_chw = np.transpose(resized, (2, 0, 1))
+        resized_batch.append(resized_chw.astype(np.float32))
+
+    resized_batch = np.stack(resized_batch, axis=0)
+    return resized_batch 
 
 def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
@@ -214,6 +246,7 @@ def get_package_init_file(package_name):
         raise FileNotFoundError(f"__init__.py file not found for package {package_name}")
     return init_file_path
 
+# to remove
 def update_version_in_mmdet_init_file(package_name, old_version, new_version):
     init_file_path = get_package_init_file(package_name)
     with open(init_file_path, 'r') as file:
