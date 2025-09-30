@@ -7,18 +7,27 @@ def init():
         "faster r-cnn": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth", 
                          "source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth"
                          },
+        "faster r-cnn onnx": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx", 
+                         "source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx"
+                         },
         "ssd": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth", 
                 "source": "https://zenodo.org/records/11388549/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.pth"
+                },
+        "ssd-onnx": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx", 
+                "source": "https://zenodo.org/records/11388549/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx"
                 },
         "yolov3": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth",
                    "source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth"
                    },
-        "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
-                    "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
-                    },
         "yolov3-onnx": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
                    "source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx"
                    },
+        "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
+                    "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
+                    },
+        "rtmdet-onnx":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
+                    "source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx"
+                    },
     }
     
     global MODELS_DIR
