@@ -12,6 +12,19 @@ import onnxruntime as ort
 import mmdet
 from mmdet.apis import DetInferencer
 
+def get_best_provider():
+    # List all available providers on this machine
+    available_providers = ort.get_available_providers()
+    #print("Available ONNX Runtime providers:", available_providers)
+
+    # Priority order: CUDA > CoreML > CPU
+    if "CUDAExecutionProvider" in available_providers:
+        return "CUDAExecutionProvider"
+    elif "CoreMLExecutionProvider" in available_providers:
+        return "CoreMLExecutionProvider"
+    else:
+        return "CPUExecutionProvider"
+
 class OrganoiDL():
     '''
     The back-end of the organoid counter widget
@@ -70,10 +83,8 @@ class OrganoiDL():
 
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         if model_checkpoint.endswith('.onnx'):
-            self.model = ort.InferenceSession(model_checkpoint, providers=["CPUExecutionProvider"])
-            '''
-            ["CUDAExecutionProvider", "CoreMLExecutionProvider", "CPUExecutionProvider"])
-            '''
+            provider = get_best_provider()
+            self.model = ort.InferenceSession(model_checkpoint, providers=[provider])
             # Get input/output names
             self.model_type = 'onnx'
             self.input_name = self.model.get_inputs()[0].name
