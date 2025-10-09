@@ -1,3 +1,4 @@
+import os
 from urllib.request import urlretrieve
 from napari.utils import progress
 
@@ -241,7 +242,7 @@ class OrganoiDL():
         result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
 
         # Ensure next_id remains monotonic by setting it to one higher than the max kept ID
-        self.next_id[shapes_name] = max(self.pred_ids[shapes_name]) + 1
+        self.next_id[shapes_name] = max(self.pred_ids[shapes_name], default=0) + 1
 
         return result_bboxes, result_scores, result_labels, result_ids
 
@@ -328,3 +329,12 @@ class OrganoiDL():
         del self.pred_labels[shapes_name]
         del self.pred_ids[shapes_name]
         del self.next_id[shapes_name]
+
+    def rename_shape_key(self, old_name: str, new_name: str):
+        """Rename a prediction set across all internal dicts."""
+        for d in (self.pred_bboxes, self.pred_scores, self.pred_labels, self.pred_ids, self.next_id):
+            if old_name in d and new_name not in d:
+                d[new_name] = d.pop(old_name)
+            elif old_name in d and new_name in d:
+                # merge conservatively: prefer existing 'new_name' and drop 'old_name'
+                d.pop(old_name)

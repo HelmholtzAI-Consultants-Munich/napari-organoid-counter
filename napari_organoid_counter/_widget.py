@@ -1,3 +1,4 @@
+import torch
 from typing import List
 import math
 
@@ -139,6 +140,7 @@ class OrganoidCounterWidget(QWidget):
         self.class_checkboxes: dict[int, QCheckBox] = {}   # per-class filter checkboxes
         self.master_class_checkbox: QCheckBox | None = None  # "All classes" toggle checkbox
         self.visible_classes_filter: set[int] = set(self.selected_classes)  # start with all visible
+        self._shape_name_by_id: dict[int, str] = {}
         self._hover_idx: int | None = None  # current hovered box index
         self._hover_base: str = ""  # cached static hover message (ID, diameters, etc.)
 
@@ -155,6 +157,12 @@ class OrganoidCounterWidget(QWidget):
         if len(self.image_layer_names)>0: self._update_added_image(self.image_layer_names)
         self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
         if len(self.shape_layer_names)>0: self._update_added_shapes(self.shape_layer_names)
+
+        # for name in self.shape_layer_names:
+        #     layer = self.viewer.layers[name]
+        #     self._shape_name_by_id[id(layer)] = layer.name
+        #     layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
+
         # and watch for newly added images or shapes
         self.viewer.layers.events.inserted.connect(self._added_layer)
         self.viewer.layers.events.removed.connect(self._removed_layer)
@@ -236,7 +244,42 @@ class OrganoidCounterWidget(QWidget):
 
             #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode. Use ")
             #show_info(f"Use {key} to change edge color to class {class_num}.")
-           
+
+    def _on_shapes_layer_renamed(self, layer):
+        old = self._shape_name_by_id.get(id(layer))
+        new = layer.name
+        if not old or old == new:
+            return
+
+        # 1) migrate OrganoiDL dict keys
+        if hasattr(self.organoiDL, "rename_shape_key"):
+            self.organoiDL.rename_shape_key(old, new)
+
+        # 2) update widget state dicts
+        if old in self.stored_confidences:
+            self.stored_confidences[new] = self.stored_confidences.pop(old)
+        if old in self.stored_diameters:
+            self.stored_diameters[new] = self.stored_diameters.pop(old)
+
+        # 3) update our layer-name lists
+        if old in self.shape_layer_names:
+            idx = self.shape_layer_names.index(old)
+            self.shape_layer_names[idx] = new
+
+        # 4) update the save dropdown entry text
+        idx = self.output_layer_selection.findText(old)
+        if idx != -1:
+            self.output_layer_selection.setItemText(idx, new)
+
+        # 5) update active names
+        if self.cur_shapes_name == old:
+            self.cur_shapes_name = new
+        if self.save_layer_name == old:
+            self.save_layer_name = new
+
+        # 6) cache the new name
+        self._shape_name_by_id[id(layer)] = new
+
     def change_edge_color(self, viewer: napari.Viewer, selected_shapes, class_num):
         """Change the edge color of selected shapes based on the class number."""
 
@@ -299,6 +342,12 @@ class OrganoidCounterWidget(QWidget):
         if len(new_shape_layer_names)>0:
             self._update_added_shapes(new_shape_layer_names)
             self.shape_layer_names.extend(new_shape_layer_names)
+
+            # for name in new_shape_layer_names:
+            #     layer = self.viewer.layers[name]
+            #     self._shape_name_by_id[id(layer)] = layer.name
+            #     layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
+
             # reset edge color
             for name in new_shape_layer_names:
                 self.viewer.layers[name].current_edge_color = settings.COLOR_DEFAULT
@@ -498,7 +547,15 @@ class OrganoidCounterWidget(QWidget):
         # box_ids = self.cur_shapes_layer.properties['box_id']
         # next_id_val = (int(box_ids.max()) + 1) if box_ids.size else 1
         # self.organoiDL.update_next_id(self.cur_shapes_name, next_id_val)
-        
+
+        # GUARD: ensure backend dicts exist under the current layer name
+        if self.cur_shapes_name not in self.organoiDL.pred_bboxes:
+            self.organoiDL.pred_bboxes[self.cur_shapes_name] = torch.empty((0, 4))
+            self.organoiDL.pred_scores[self.cur_shapes_name] = torch.empty((0,))
+            self.organoiDL.pred_labels[self.cur_shapes_name] = torch.empty((0,), dtype=torch.long)
+            self.organoiDL.pred_ids[self.cur_shapes_name] = []
+            self.organoiDL.next_id[self.cur_shapes_name] = 1
+
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
         with utils.set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
             labels_prop = self.cur_shapes_layer.properties.get(
@@ -753,7 +810,8 @@ class OrganoidCounterWidget(QWidget):
 
             # Always update only the coords while staying in the same box
             coords_only = f"[{int(event.position[0])} {int(event.position[1])}]"
-            status = dict(viewer.status)
+            cur_status = viewer.status
+            status = dict(cur_status) if isinstance(cur_status, dict) else {}
 
             status.update({
                 'source_type': 'plugin',     # tell Napari to show the plugin message
@@ -776,6 +834,13 @@ class OrganoidCounterWidget(QWidget):
         self.save_layer_name = added_items[0]
         self.cur_shapes_name = added_items[0]
         self.cur_shapes_layer = self.viewer.layers[self.cur_shapes_name] 
+
+        for layer_name in added_items:
+            layer = self.viewer.layers[layer_name]
+            self._shape_name_by_id[id(layer)] = layer.name
+            # bind rename handler
+            layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
+
         # self.cur_shapes_layer.events.highlight.connect(self._on_shape_hover)
 
         # get the bounding box and update the displayed number of organoids
@@ -795,18 +860,57 @@ class OrganoidCounterWidget(QWidget):
         self._apply_class_filter()
         self._refresh_class_counts()
         self.organoiDL.update_next_id(self.cur_shapes_name)
+
+        # layer = self.viewer.layers[self.cur_shapes_name]
+        # self._shape_name_by_id[id(layer)] = layer.name
+        # layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
+
         
+    # def _update_remove_shapes(self, removed_layers):
+    #     """
+    #     Update the selection box by removing shape layer names if it they been deleted and set 
+    #     """
+    #     # update selection box by removing image names if image has been deleted       
+    #     for removed_layer in removed_layers:
+    #         item_id = self.output_layer_selection.findText(removed_layer)
+    #         self.output_layer_selection.removeItem(item_id)
+    #         if removed_layer==self.cur_shapes_name: 
+    #             self._update_num_organoids(0)
+    #             self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
+
+    #     self._apply_class_filter()
+    #     self._refresh_class_counts()
+
     def _update_remove_shapes(self, removed_layers):
         """
-        Update the selection box by removing shape layer names if it they been deleted and set 
+        Update the selection box by removing shape layer names if they have been deleted.
+        Clean up backend dicts and rename-tracking state.
         """
-        # update selection box by removing image names if image has been deleted       
         for removed_layer in removed_layers:
-            item_id = self.output_layer_selection.findText(removed_layer)
-            self.output_layer_selection.removeItem(item_id)
-            if removed_layer==self.cur_shapes_name: 
+            # remove from the save dropdown
+            idx = self.output_layer_selection.findText(removed_layer)
+            if idx != -1:
+                self.output_layer_selection.removeItem(idx)
+
+            # reset count if this was the active layer
+            if removed_layer == self.cur_shapes_name:
                 self._update_num_organoids(0)
-                self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
+
+            # drop backend data for this layer (guard if already gone)
+            if removed_layer in self.organoiDL.pred_bboxes:
+                self.organoiDL.remove_shape_from_dict(removed_layer)
+
+            # remove any rename-tracking entries that pointed to this name
+            dead_ids = [lid for lid, name in list(self._shape_name_by_id.items()) if name == removed_layer]
+            for lid in dead_ids:
+                self._shape_name_by_id.pop(lid, None)
+
+            # clear pointers if they referenced the removed layer
+            if self.cur_shapes_name == removed_layer:
+                self.cur_shapes_name = ''
+                self.cur_shapes_layer = None
+            if self.save_layer_name == removed_layer:
+                self.save_layer_name = ''
 
         self._apply_class_filter()
         self._refresh_class_counts()
@@ -819,7 +923,15 @@ class OrganoidCounterWidget(QWidget):
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
             return 
-        
+
+        # GUARD: ensure backend dicts exist under the current layer name
+        if self.cur_shapes_name not in self.organoiDL.pred_bboxes:
+            self.organoiDL.pred_bboxes[self.cur_shapes_name] = torch.empty((0, 4))
+            self.organoiDL.pred_scores[self.cur_shapes_name] = torch.empty((0,))
+            self.organoiDL.pred_labels[self.cur_shapes_name] = torch.empty((0,), dtype=torch.long)
+            self.organoiDL.pred_ids[self.cur_shapes_name] = []
+            self.organoiDL.next_id[self.cur_shapes_name] = 1
+
         # get new ids, new boxes and update the number of organoids
         new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
         self._update_num_organoids(len(new_ids))
