@@ -396,7 +396,8 @@ class OrganoidCounterWidget(QWidget):
         }
 
         # Edge color for the boxes
-        use_default_color = (self.annotation_mode == 0 or "(DO)" in self.model_name)
+        all_labels_unassigned = all(int(label) == -1 for label in labels)
+        use_default_color = (self.annotation_mode == 0 or "(DO)" in self.model_name) and all_labels_unassigned
         edge_color = utils.get_edge_color(labels, use_default_color)
                     
         # if layer already exists
@@ -558,11 +559,10 @@ class OrganoidCounterWidget(QWidget):
 
         # make sure to add info to cur_shapes_layer.metadata to differentiate this action from when user adds/removes boxes
         with utils.set_dict_key( self.cur_shapes_layer.metadata, 'napari-organoid-counter:_rerun', True):
-            labels_prop = self.cur_shapes_layer.properties.get(
-                'labels',
-                [-1] * len(self.cur_shapes_layer.data)
-            )            
-            # first update bboxes in organoiDLin case user has added/removed
+            # Derive current labels from edge colors to capture any class assignments user made
+            labels_prop, _ = self._assign_labels(validate=False)
+
+            # first update bboxes in organoiDL in case user has added/removed/modified
             self.organoiDL.update_bboxes_scores(self.cur_shapes_name,
                                                 self.cur_shapes_layer.data, 
                                                 self.cur_shapes_layer.properties['scores'],
@@ -656,8 +656,12 @@ class OrganoidCounterWidget(QWidget):
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
         self._refresh_color_mapping_box()
     
-    def _assign_labels(self):
+    def _assign_labels(self, validate=True):
         """ Assign labels to the bounding boxes based on their edge colors.
+        
+        Args:
+            validate: If True, check that all colors are valid and return all_valid flag.
+                     If False, assign -1 to unmatched colors (used during _rerun to be lenient).
         """
         # Get the edge colors for all bounding boxes
         edge_colors = self.cur_shapes_layer.edge_color
@@ -669,24 +673,32 @@ class OrganoidCounterWidget(QWidget):
 
         else: # For other annotation modes (Binary Classification, 3 classes, 4 classes, etc.)
 
-            # Get valid classes and colors from annotation_mode_mapping
-            valid_labels = self.annotation_mode_mapping.get(self.annotation_mode, {}).get("classes", [])
-            valid_colors = [settings.COLOR_MAPPING[class_num][0] for class_num in valid_labels]
-
-            # Assign organoid label based on edge_color
+            # Assign organoid label based on edge_color by matching against COLOR_MAPPING
             labels = []
 
             for edge_color in edge_colors:
                 matched = False # Flag to check if the current color matches any valid color
-                for class_num, valid_color in enumerate(valid_colors):
-                    if np.allclose(edge_color[:3], valid_color[:3]):
-                        labels.append(class_num)  # Assign label based on the matched color
-                        matched = True
-                        break
-                # If no match for this edge_color, mark the flag to False
+                
+                # First check if it's the default magenta color (unassigned/uncertain)
+                if np.allclose(edge_color[:3], settings.COLOR_DEFAULT[:3], rtol=1e-3, atol=1e-3):
+                    labels.append(-1)  # Assign -1 for default/unassigned boxes
+                    matched = True
+                else:
+                    # Check against all color mappings to find the actual class number
+                    for class_num, (color_rgba, color_name) in settings.COLOR_MAPPING.items():
+                        if np.allclose(edge_color[:3], color_rgba[:3], rtol=1e-3, atol=1e-3):
+                            labels.append(class_num)  # Assign actual class number
+                            matched = True
+                            break
+                
+                # If no match for this edge_color
                 if not matched:
-                    all_valid = False
-                    break # Exit the loop early if any color is invalid
+                    if validate:
+                        all_valid = False
+                        break # Exit the loop early if any color is invalid
+                    else:
+                        # During _rerun, be lenient and assign -1 for unmatched colors
+                        labels.append(-1)
         return labels, all_valid
 
     def _on_save_csv_click(self): 

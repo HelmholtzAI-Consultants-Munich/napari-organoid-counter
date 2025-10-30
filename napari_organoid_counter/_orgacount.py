@@ -48,6 +48,7 @@ class OrganoiDL():
         self.cur_min_diam = 30
 
         self.model = None
+        self.model_name = None
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
@@ -62,6 +63,7 @@ class OrganoiDL():
     def set_model(self, model_name):
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
+        self.model_name = model_name  # Store the model name
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         mmdet_path = os.path.dirname(mmdet.__file__)
         config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
@@ -204,6 +206,11 @@ class OrganoiDL():
         labels = torch.Tensor(labels)
         # apply NMS to remove overlaping boxes
         bboxes, pred_scores, pred_labels = apply_nms(bboxes, scores, labels)
+        # For Detection Only models, set all boxes to class -1 (uncertain/unassigned)
+        # For classification models (BC/multiclass), keep the predicted classes
+        if self.model_name and "(DO)" in self.model_name:  # TODO: what about the annotation mode?
+            pred_labels = torch.full_like(pred_labels, -1)
+
         self.pred_bboxes[shapes_name] = bboxes
         self.pred_scores[shapes_name] = pred_scores
         self.pred_labels[shapes_name] = pred_labels
@@ -295,6 +302,19 @@ class OrganoiDL():
                 self.pred_labels[shapes_name] = torch.cat((self.pred_labels[shapes_name], new_labels[added_ids]))
                 new_ids_to_add = [new_ids[i] for i in added_ids]
                 self.pred_ids[shapes_name].extend(new_ids_to_add)
+            
+            # Update existing boxes that have been modified (resized or class changed)
+            # For each box_id that exists in both old and new, update its geometry and label
+            common_box_ids = list(set(new_ids).intersection(self.pred_ids[shapes_name]))
+            for box_id in common_box_ids:
+                new_idx = new_ids.index(box_id)
+                old_idx = self.pred_ids[shapes_name].index(box_id)
+                # Update bbox coordinates (handles resizing)
+                self.pred_bboxes[shapes_name][old_idx] = new_bboxes[new_idx]
+                # Update scores (in case user modified manually added boxes)
+                self.pred_scores[shapes_name][old_idx] = new_scores[new_idx]
+                # Update labels (handles class assignment changes)
+                self.pred_labels[shapes_name][old_idx] = new_labels[new_idx]
             
             # and find ids that are in self.pred_ids and not in new_ids
             potential_removed_box_ids = list(set(self.pred_ids[shapes_name]).difference(new_ids))

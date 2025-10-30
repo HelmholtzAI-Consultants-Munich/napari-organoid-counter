@@ -205,5 +205,5 @@ def get_edge_color(labels, use_default_color: bool):
             if int(label) == -1:  # Uncertain labels in Binary Classification Mode
                 edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
             else:
-                edge_color.append(settings.COLOR_MAPPING[label][0])  # Set edge color based on the predicted label
+                edge_color.append(settings.COLOR_MAPPING[int(label)][0])  # Set edge color based on the predicted label
     return edge_color
