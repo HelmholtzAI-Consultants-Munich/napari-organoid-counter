@@ -1,10 +1,12 @@
+import os
+import time
+from pathlib import Path
 from typing import List
 
 from skimage.io import imsave
 from datetime import datetime
 
 import napari
-
 from napari import layers
 from napari.utils.notifications import show_info, show_error, show_warning
 
@@ -300,8 +302,54 @@ class OrganoidCounterWidget(QWidget):
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else: self._preprocess()
 
+    def _save_timing_info(self, elapsed_time):
+        """ Save elapsed time and run configuration to a JSON file """
+        # Get the absolute path of the current image
+        image_layer = self.viewer.layers[self.image_layer_name]
+        assert hasattr(image_layer, 'source') and hasattr(image_layer.source, 'path')
+        image_path = str(Path(image_layer.source.path).resolve())
+        
+        # Create directory for timing logs next to the script
+        script_dir = Path(__file__).parent
+        timing_dir = script_dir / "timing_logs"
+        timing_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Format window sizes and downsampling for filename
+        window_str = "_".join(map(str, self.window_sizes))
+        downsample_str = "_".join(map(str, self.downsampling))
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{self.image_layer_name}_ws{window_str}_ds{downsample_str}_{timestamp}.json"
+        filepath = timing_dir / filename
+        
+        # Determine annotation mode
+        annotation_mode = "Multi Annotation" if self.multi_annotation_mode else "Single Annotation"
+        
+        # Prepare data to save
+        timing_data = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "image_path": image_path,
+            "elapsed_time_seconds": round(elapsed_time, 2),
+            "elapsed_time_formatted": f"{int(elapsed_time // 60)}m {int(elapsed_time % 60)}s",
+            "window_sizes": self.window_sizes,
+            "downsampling": self.downsampling,
+            "window_overlap": self.window_overlap,
+            "model_name": self.model_name,
+            "annotation_mode": annotation_mode
+        }
+        
+        # Save to JSON file
+        utils.write_to_json(str(filepath), timing_data)
+        
+        # Show info to user
+        show_info(f"Run completed in {timing_data['elapsed_time_formatted']}. Timing saved to: {filename}")
+
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
+        # Start timing
+        start_time = time.time()
+
         # check if an image has been loaded
         if not self.image_layer_name: 
             show_info('Please load an image first and try again!')
@@ -355,6 +403,14 @@ class OrganoidCounterWidget(QWidget):
         bboxes, scores, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter)
         # hide activcity dock on completion
         self.viewer.window._status_bar._toggle_activity_dock(False)
+
+        # End timing
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        
+        # Save timing information
+        self._save_timing_info(elapsed_time)
+
         # update widget with results
         self._update_vis_bboxes(bboxes, scores, box_ids, labels_layer_name)
         # and update cur_shapes_name to newly created shapes layer
@@ -382,13 +438,13 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever user changes the window sizes text box """
         new_window_sizes = self.window_sizes_textbox.text()
         new_window_sizes = new_window_sizes.split(',')
-        self.window_sizes = [int(win_size) for win_size in new_window_sizes]
+        self.window_sizes = [int(win_size.strip()) for win_size in new_window_sizes]
 
     def _on_downsampling_changed(self):
         """ Is called whenever user changes the downsampling text box """
         new_downsampling = self.downsampling_textbox.text()
         new_downsampling = new_downsampling.split(',')
-        self.downsampling = [int(ds) for ds in new_downsampling]
+        self.downsampling = [int(ds.strip()) for ds in new_downsampling]
 
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
@@ -765,6 +821,7 @@ class OrganoidCounterWidget(QWidget):
         text = ','.join(text)
         self.window_sizes_textbox.setText(text)
         self.window_sizes_textbox.returnPressed.connect(self._on_window_sizes_changed)
+        self.window_sizes_textbox.editingFinished.connect(self._on_window_sizes_changed)
         self.window_sizes_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(window_sizes_label)
@@ -794,6 +851,7 @@ class OrganoidCounterWidget(QWidget):
         text = ','.join(text)
         self.downsampling_textbox.setText(text)
         self.downsampling_textbox.returnPressed.connect(self._on_downsampling_changed)
+        self.downsampling_textbox.editingFinished.connect(self._on_downsampling_changed)
         self.downsampling_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(downsampling_label)
