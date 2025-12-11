@@ -1,12 +1,12 @@
 import json
 import numpy as np
-from napari_organoid_counter import get_reader
+from napari_organoid_counter import get_reader, settings
 
 
 # tmp_path is a pytest fixture
 def test_reader(tmp_path):
     """Testing the reader part of the plugin"""
-
+    settings.init()
     # write some fake data using your supported file format
     my_test_file = str(tmp_path / 'myfile.json')
     bboxes = [np.array([[2000,2000], [2000,2500], [2500,2500], [2500,2000]]),
