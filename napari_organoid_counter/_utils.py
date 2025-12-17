@@ -141,13 +141,12 @@ def resize_keep_ratio_numpy(img, scale=(416, 416)):
 def resize_keep_ratio_torch(img, scale=(416, 416)):
     """
     Resize a numpy array [B, C, H, W] keeping aspect ratio using PyTorch.
-    Supports CUDA (NVIDIA), MPS (Apple Silicon), and CPU.
     
     Args:
         img (np.ndarray): shape [B, C, H, W]
         scale (tuple): target maximum (w, h), e.g. (416, 416)
     Returns:
-        np.ndarray: resized array [B, C, new_h, new_w]. ########### torch.Tensor
+        torch.Tensor: resized array [B, C, new_h, new_w]
     """
     assert img.ndim == 4, "Expected input shape [B, C, H, W]"
     B, C, H, W = img.shape

@@ -177,6 +177,8 @@ class OrganoiDL():
                     outputs = self.model.run(self.output_names, {self.input_name: img_crop})
                     dets, _ = outputs # dets, labels 
                     dets = dets[0]
+                    dets = dets[dets[:, 4] > 0.05] # confidence threshold
+                    print(dets.shape[0])
                     if dets.shape[0]==0: continue
                     else:
                         for bbox_id in range(dets.shape[0]):
@@ -197,6 +199,7 @@ class OrganoiDL():
                     # get predictions
                     output = self.model(img_crop)
                     preds = output['predictions'][0]['bboxes']
+                    print(len(preds))
                     if len(preds)==0: continue
                     else:
                         for bbox_id in range(len(preds)):
