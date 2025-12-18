@@ -7,6 +7,9 @@ from napari_organoid_counter import settings
 import torch
 import onnxruntime as ort
 
+import time
+from contextlib import contextmanager
+
  # to remove
  #update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
 import mmdet
@@ -15,7 +18,7 @@ from mmdet.apis import DetInferencer
 def get_best_provider():
     # List all available providers on this machine
     available_providers = ort.get_available_providers()
-    #print("Available ONNX Runtime providers:", available_providers)
+    # print("Available ONNX Runtime providers:", available_providers)
 
     # Priority order: CUDA > CoreML > CPU
     if "CUDAExecutionProvider" in available_providers:
@@ -24,6 +27,15 @@ def get_best_provider():
         return "CoreMLExecutionProvider"
     else:
         return "CPUExecutionProvider"
+
+@contextmanager
+def profile_section(name, stats_dict):
+    """Context manager for timing code sections"""
+    start = time.perf_counter()
+    yield
+    elapsed = time.perf_counter() - start
+    stats_dict[name] = stats_dict.get(name, 0) + elapsed
+    stats_dict[f"{name}_count"] = stats_dict.get(f"{name}_count", 0) + 1
 
 class OrganoiDL():
     '''
@@ -145,6 +157,9 @@ class OrganoiDL():
             The  resulting confidence scores of the model for the predicted boxes are appended here 
             Same as pred_bboxes, can be empty on first run but stores results of all runs.
         '''
+        # Profiling variables
+        start_time = time.perf_counter()
+        profiling_stats = {}
 
         resize_factor_x = window_size / self.model_expect_size[0]
         resize_factor_y = window_size / self.model_expect_size[1]
@@ -153,14 +168,20 @@ class OrganoiDL():
             for j in progress(range(0, prepadded_width, step)):
                 if self.model_type=='onnx':
                     img_crop = test_img[:,:,i:(i+window_size), j:(j+window_size)]
-                    img_crop = resize_keep_ratio_numpy(img_crop, self.model_expect_size)
+                    
+                    with profile_section('resize', profiling_stats):
+                        # img_crop = resize_keep_ratio_numpy(img_crop, self.model_expect_size)
+                        img_crop = resize_keep_ratio_torch(img_crop, self.model_expect_size)
+                    
                     # Run inference
                     outputs = self.model.run(self.output_names, {self.input_name: img_crop})
                     dets, _ = outputs # dets, labels 
                     dets = dets[0]
-                    if dets.shape[1]==0: continue
+                    dets = dets[dets[:, 4] > 0.05] # confidence threshold
+                    print(dets.shape[0])
+                    if dets.shape[0]==0: continue
                     else:
-                        for bbox_id in range(dets.shape[1]):
+                        for bbox_id in range(dets.shape[0]):
                             y1, x1, y2, x2, score = dets[bbox_id]
                             x1 *= resize_factor_x
                             x2 *= resize_factor_x
@@ -178,6 +199,7 @@ class OrganoiDL():
                     # get predictions
                     output = self.model(img_crop)
                     preds = output['predictions'][0]['bboxes']
+                    print(len(preds))
                     if len(preds)==0: continue
                     else:
                         for bbox_id in range(len(preds)):
@@ -188,6 +210,24 @@ class OrganoiDL():
                             y2_real = torch.div(y2+j, rescale_factor, rounding_mode='floor')
                             pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
                             scores_list.append(output['predictions'][0]['scores'][bbox_id])
+        
+        # Calculate and print profiling results
+        total_time = time.perf_counter() - start_time
+        resize_time = profiling_stats.get('resize', 0)
+        resize_count = profiling_stats.get('resize_count', 0)
+        resize_percentage = (resize_time / total_time * 100) if total_time > 0 else 0
+        
+        print(f"\n{'='*60}")
+        print(f"Profiling Results for sliding_window()")
+        print(f"{'='*60}")
+        print(f"Total function time:        {total_time:.4f} seconds")
+        print(f"resize_keep_ratio_numpy:")
+        print(f"  - Total time:             {resize_time:.4f} seconds")
+        print(f"  - Percentage of total:    {resize_percentage:.2f}%")
+        print(f"  - Number of calls:        {resize_count}")
+        print(f"  - Average time per call:  {resize_time/resize_count:.6f} seconds" if resize_count > 0 else "  - Average time per call:  N/A")
+        print(f"{'='*60}\n")
+        
         return pred_bboxes, scores_list
 
     def run(self, 

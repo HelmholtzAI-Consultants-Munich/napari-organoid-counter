@@ -14,6 +14,7 @@ import torch
 from torchvision.ops import nms
 
 from napari_organoid_counter import settings
+import torch.nn.functional as F
 
 
 def add_local_models():
@@ -137,6 +138,38 @@ def resize_keep_ratio_numpy(img, scale=(416, 416)):
     resized_batch = np.stack(resized_batch, axis=0)
     return resized_batch 
 
+def resize_keep_ratio_torch(img, scale=(416, 416)):
+    """
+    Resize a numpy array [B, C, H, W] keeping aspect ratio using PyTorch.
+    
+    Args:
+        img (np.ndarray): shape [B, C, H, W]
+        scale (tuple): target maximum (w, h), e.g. (416, 416)
+    Returns:
+        torch.Tensor: resized array [B, C, new_h, new_w]
+    """
+    assert img.ndim == 4, "Expected input shape [B, C, H, W]"
+    B, C, H, W = img.shape
+    target_w, target_h = scale
+    
+    # Compute scale factor
+    scale_factor = min(target_w / W, target_h / H)
+    new_w, new_h = int(W * scale_factor), int(H * scale_factor)
+    
+    # Resize using bilinear interpolation (vectorized for entire batch)
+    resized_tensor = F.interpolate(
+        img,
+        size=(new_h, new_w),
+        mode='bilinear',
+        align_corners=False,
+        antialias=True
+    )
+    
+    # Convert back to numpy
+    resized_batch = resized_tensor.cpu().numpy().astype(np.float32)
+    
+    return resized_batch
+
 def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
     # squeeze and resize image
@@ -160,6 +193,7 @@ def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     test_img = np.transpose(test_img, (2, 0, 1))
     # Add batch dimension
     test_img = np.expand_dims(test_img, axis=0)
+    test_img = torch.from_numpy(test_img).to('cuda' if torch.cuda.is_available() else 'cpu')
     
     return test_img, img_height, img_width
 
