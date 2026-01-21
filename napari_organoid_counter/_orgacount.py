@@ -47,6 +47,8 @@ class OrganoiDL():
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
 
+        self.cancel_requested = False
+
         self.model = None
         self.model_name = None
         self.img_scale = [0., 0.]
@@ -125,8 +127,12 @@ class OrganoiDL():
             The  resulting labels of the model for the predicted boxes are appended here
             Same as pred_bboxes, can be empty on first run but stores results of all runs.
         '''
-        for i in progress(range(0, prepadded_height, step)):
+        for i in progress(range(0, prepadded_height, step)):            
             for j in progress(range(0, prepadded_width, step)):
+                if self.cancel_requested:
+                    print("Cancellation requested, stopping inference...")
+                    return pred_bboxes, scores_list, labels_list  # Return what we have so far                            
+                
                 # crop
                 img_crop = test_img[i:(i+window_size), j:(j+window_size)]
                 # get predictions

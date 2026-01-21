@@ -155,11 +155,25 @@ class OrganoidCounterWidget(QWidget):
         # Supported image extensions
         self.supported_image_extensions = {'.tif', '.TIF', '.tiff', '.TIFF', '.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'}
 
-        # setup gui        
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(self._setup_input_widget())
-        self.layout().addWidget(self._setup_output_widget())
-        self.layout().addWidget(self._setup_data_browser_widget())
+        # Setup GUI        
+        # Create a container widget for all content
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.addWidget(self._setup_input_widget())
+        container_layout.addWidget(self._setup_output_widget())
+        container_layout.addWidget(self._setup_data_browser_widget())
+        container_layout.addStretch(1)  # Push everything to top
+
+        # Wrap in scroll area
+        scroll = QScrollArea()
+        scroll.setWidget(container)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        # Set main layout
+        main_layout = QVBoxLayout()
+        main_layout.addWidget(scroll)
+        self.setLayout(main_layout)
 
         # initialise organoidl instance
         self.organoiDL = OrganoiDL(self.handle_progress)
@@ -449,6 +463,10 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
+        # Reset cancellation flag
+        self.organoiDL.cancel_requested = False
+        self.cancel_btn.setEnabled(True)
+
         # Check if the model is 'Binary Classification' and ensure it's not in 'Detection Only' mode
         current_annotation_mode = self.annotation_mode
         # TODO: make the condition more general (applicable to other models as well)
@@ -508,16 +526,32 @@ class OrganoidCounterWidget(QWidget):
         raw_total = self.organoiDL.pred_bboxes[labels_layer_name].size(0)
         print(f"Backend detected {raw_total} boxes (before any filtering).")
 
+        if self.organoiDL.cancel_requested:
+            self.cancel_btn.setEnabled(False)
+            self.viewer.window._status_bar._toggle_activity_dock(False)
+            show_info("Inference cancelled by user")
+            return
+
         # set the confidence threshold, remove small organoids and get bboxes in format o visualise
         bboxes, scores, labels, box_ids = self.organoiDL.apply_params(labels_layer_name, self.confidence, self.min_diameter, self.model_name)
         # hide activcity dock on completion
         self.viewer.window._status_bar._toggle_activity_dock(False)
+
+        # Disable cancel button when done
+        self.cancel_btn.setEnabled(False)
+
         # update widget with results
         self._update_vis_bboxes(bboxes, scores, labels, box_ids, labels_layer_name)
         # and update cur_shapes_name to newly created shapes layer
         self.cur_shapes_name = labels_layer_name
         # preprocess the image if not done so already to improve visualisation
         self._preprocess() 
+
+    def _on_cancel_click(self):
+        """ Is called when Cancel button is clicked """
+        self.organoiDL.cancel_requested = True
+        self.cancel_btn.setEnabled(False)
+        show_info("Cancelling inference...")
 
     def _on_model_selection_changed(self):
         """ Is called when user selects a new model from the dropdown menu. """
@@ -1149,6 +1183,13 @@ class OrganoidCounterWidget(QWidget):
         run_btn.clicked.connect(self._on_run_click)
         run_btn.setStyleSheet("border: 0px")
         hbox.addWidget(run_btn)
+
+        # ADD CANCEL BUTTON
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self._on_cancel_click)
+        self.cancel_btn.setEnabled(False)
+        hbox.addWidget(self.cancel_btn)
+
         hbox.addStretch(1)
         return hbox
     
@@ -1315,11 +1356,7 @@ class OrganoidCounterWidget(QWidget):
         # Build a new one reflecting the current annotation mode
         self.legend_box = self._setup_color_mapping_box()
 
-        # Re-insert it *immediately after* the confidence box
-        self.output_widget.layout().insertWidget(
-            self.output_widget.layout().indexOf(self.confidence_slider.parentWidget()) + 1,
-            self.legend_box
-        )
+        self.output_widget.layout().insertWidget(2, self.legend_box)
 
         self._apply_class_filter()
         self._refresh_class_counts()
