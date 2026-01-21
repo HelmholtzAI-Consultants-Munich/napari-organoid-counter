@@ -6,6 +6,12 @@ from pathlib import Path
 from napari_organoid_counter import settings
 from napari_organoid_counter._utils import get_edge_color
 
+# Ensure settings constants are loaded when the reader is imported standalone
+try:
+    settings.init()
+except Exception:
+    pass
+
 
 readable_extensions = '.json'
 

@@ -12,11 +12,13 @@ from napari.utils.notifications import show_info, show_error, show_warning
 
 import numpy as np
 
+from pathlib import Path
+
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
-    QSlider, QCheckBox, QScrollArea
+    QSlider, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem
 )
 
 from napari_organoid_counter._orgacount import OrganoiDL
@@ -144,10 +146,20 @@ class OrganoidCounterWidget(QWidget):
         self._hover_idx: int | None = None  # current hovered box index
         self._hover_base: str = ""  # cached static hover message (ID, diameters, etc.)
 
+        # Data Browser state
+        self.data_folder: str = ""
+        self.image_files: list = []  # All discovered image paths
+        self.current_image_path: Path | None = None
+        self.file_tree: QTreeWidget | None = None
+
+        # Supported image extensions
+        self.supported_image_extensions = {'.tif', '.TIF', '.tiff', '.TIFF', '.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'}
+
         # setup gui        
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(self._setup_input_widget())
         self.layout().addWidget(self._setup_output_widget())
+        self.layout().addWidget(self._setup_data_browser_widget())
 
         # initialise organoidl instance
         self.organoiDL = OrganoiDL(self.handle_progress)
@@ -266,10 +278,6 @@ class OrganoidCounterWidget(QWidget):
             idx = self.shape_layer_names.index(old)
             self.shape_layer_names[idx] = new
 
-        # 4) update the save dropdown entry text
-        idx = self.output_layer_selection.findText(old)
-        if idx != -1:
-            self.output_layer_selection.setItemText(idx, new)
 
         # 5) update active names
         if self.cur_shapes_name == old:
@@ -622,9 +630,6 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever a new image has been selected from the drop down box """
         self.image_layer_name = self.image_layer_selection.currentText()
     
-    def _on_shapes_selection_changed(self):
-        """ Is called whenever a new shapes layer has been selected from the drop down box """
-        self.save_layer_name = self.output_layer_selection.currentText()
 
     def _on_reset_click(self):
         """ Is called whenever Reset Configs button is clicked """
@@ -839,9 +844,6 @@ class OrganoidCounterWidget(QWidget):
         """
         Update the selection box by shape layer names if it they have been added, update current working shape layer and instantiate OrganoiDL if not already there
         """
-        # update the drop down box displaying shape layer names for saving
-        for layer_name in added_items:
-            self.output_layer_selection.addItem(layer_name)
         # set the latest added shapes layer to the shapes layer that has been selected for saving and visualisation
         self.save_layer_name = added_items[0]
         self.cur_shapes_name = added_items[0]
@@ -895,15 +897,10 @@ class OrganoidCounterWidget(QWidget):
 
     def _update_remove_shapes(self, removed_layers):
         """
-        Update the selection box by removing shape layer names if they have been deleted.
+        Update state when shape layers are deleted.
         Clean up backend dicts and rename-tracking state.
         """
         for removed_layer in removed_layers:
-            # remove from the save dropdown
-            idx = self.output_layer_selection.findText(removed_layer)
-            if idx != -1:
-                self.output_layer_selection.removeItem(idx)
-
             # reset count if this was the active layer
             if removed_layer == self.cur_shapes_name:
                 self._update_num_organoids(0)
@@ -1031,7 +1028,6 @@ class OrganoidCounterWidget(QWidget):
             self.legend_box = None
         vbox.addWidget(self.organoid_number_label)
         vbox.addLayout(self._setup_reset_box())
-        vbox.addLayout(self._setup_save_box())
         
         self.output_widget.setLayout(vbox)
         return self.output_widget
@@ -1457,35 +1453,261 @@ class OrganoidCounterWidget(QWidget):
         #self.reset_box.setStyleSheet("border: 0px")
         return hbox
 
-    def _setup_save_box(self):
+    def _setup_data_browser_widget(self):
         """
-        Sets up the GUI part where shapes layer is saved 
+        Sets up the Data Browser section with folder selection, file tree, and navigation buttons.
         """
-        #self.save_box = QGroupBox()
-        hbox = QHBoxLayout()
-        # setup button for saving features
-        self.save_csv_btn = QPushButton("Save features")
-        self.save_csv_btn.clicked.connect(self._on_save_csv_click)
-        # setup button for saving boxes
-        self.save_json_btn = QPushButton("Save boxes")
-        self.save_json_btn.clicked.connect(self._on_save_json_click)
-        # setup label
-        self.save_label = QLabel('Save: ', self)
-        self.save_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # setup drop down option for selecting which shapes layer to save
-        self.output_layer_selection = QComboBox()
-        if self.shape_layer_names is not None:
-            for name in self.shape_layer_names: self.output_layer_selection.addItem(name)
-        self.output_layer_selection.currentIndexChanged.connect(self._on_shapes_selection_changed)
-        # and add all these to the layout
-        hbox.addWidget(self.save_label)
-        hbox.addSpacing(5)
-        hbox.addWidget(self.output_layer_selection)
-        hbox.addWidget(self.save_csv_btn)
-        hbox.addWidget(self.save_json_btn)
-        #self.save_box.setLayout(hbox)
-        #self.save_box.setStyleSheet("border: 0px")
-        return hbox
+        data_browser_box = QGroupBox('Data Browser')
+        vbox = QVBoxLayout()
+
+        # Folder selection row
+        folder_row = QHBoxLayout()
+        folder_label = QLabel('Folder:', self)
+        self.folder_path_display = QLineEdit(self)
+        self.folder_path_display.setReadOnly(True)
+        self.folder_path_display.setPlaceholderText('Select a folder...')
+        browse_btn = QPushButton('Browse')
+        browse_btn.clicked.connect(self._on_browse_folder_clicked)
+        folder_row.addWidget(folder_label, 1)
+        folder_row.addWidget(self.folder_path_display, 6)
+        folder_row.addWidget(browse_btn, 2)
+        vbox.addLayout(folder_row)
+
+        # File tree widget
+        self.file_tree = QTreeWidget()
+        self.file_tree.setHeaderLabel('Images')
+        self.file_tree.setMinimumHeight(200)
+        self.file_tree.itemClicked.connect(self._on_tree_item_clicked)
+        vbox.addWidget(self.file_tree)
+
+        # Buttons row
+        buttons_row = QHBoxLayout()
+        buttons_row.addStretch(1)
+        self.save_annotation_btn = QPushButton('Save Annotation')
+        self.save_annotation_btn.clicked.connect(self._on_save_annotation_clicked)
+        self.next_image_btn = QPushButton('Next Image')
+        self.next_image_btn.clicked.connect(self._on_next_image_clicked)
+        buttons_row.addWidget(self.save_annotation_btn)
+        buttons_row.addSpacing(15)
+        buttons_row.addWidget(self.next_image_btn)
+        buttons_row.addStretch(1)
+        vbox.addLayout(buttons_row)
+
+        data_browser_box.setLayout(vbox)
+        return data_browser_box
+
+    def _on_browse_folder_clicked(self):
+        """Handle folder selection via file dialog."""
+        folder = QFileDialog.getExistingDirectory(self, 'Select Data Folder', '')
+        if folder:
+            self.data_folder = folder
+            self.folder_path_display.setText(folder)
+            self._scan_folder_for_images(folder)
+            self._populate_file_tree()
+
+    def _scan_folder_for_images(self, folder_path: str):
+        """Recursively scan folder for supported image files."""
+        self.image_files = []
+        folder = Path(folder_path)
+        for file_path in sorted(folder.rglob('*')):
+            if file_path.is_file() and file_path.suffix in self.supported_image_extensions:
+                self.image_files.append(file_path)
+
+    def _populate_file_tree(self):
+        """Build the tree widget from scanned image files."""
+        self.file_tree.clear()
+        if not self.data_folder:
+            return
+
+        root_path = Path(self.data_folder)
+        # Dictionary to store folder items for hierarchy
+        folder_items: dict[Path, QTreeWidgetItem] = {}
+
+        for img_path in self.image_files:
+            # Get relative path from root
+            rel_path = img_path.relative_to(root_path)
+            parent_parts = rel_path.parts[:-1]  # All parts except filename
+
+            # Build folder hierarchy
+            current_parent = None
+            current_path = root_path
+            for part in parent_parts:
+                current_path = current_path / part
+                if current_path not in folder_items:
+                    folder_item = QTreeWidgetItem()
+                    folder_item.setText(0, part + '/')
+                    folder_item.setData(0, Qt.UserRole, None)  # Folders have no path data
+                    if current_parent is None:
+                        self.file_tree.addTopLevelItem(folder_item)
+                    else:
+                        current_parent.addChild(folder_item)
+                    folder_items[current_path] = folder_item
+                current_parent = folder_items[current_path]
+
+            # Add the image file
+            file_item = QTreeWidgetItem()
+            file_item.setText(0, img_path.name)
+            file_item.setData(0, Qt.UserRole, str(img_path))  # Store full path
+            if self._is_image_annotated(img_path):
+                file_item.setForeground(0, Qt.green)
+
+            if current_parent is None:
+                self.file_tree.addTopLevelItem(file_item)
+            else:
+                current_parent.addChild(file_item)
+
+        # Expand all folders by default
+        self.file_tree.expandAll()
+
+    def _is_image_annotated(self, img_path: Path) -> bool:
+        """Check if a corresponding JSON annotation file exists."""
+        json_path = img_path.with_suffix('.json')
+        return json_path.exists()
+
+    def _refresh_file_tree(self):
+        """Refresh the file tree to update annotation status indicators."""
+        self._populate_file_tree()
+
+    def _on_tree_item_clicked(self, item: QTreeWidgetItem, column: int):
+        """Handle click on a tree item - load the image if it's a file."""
+        img_path_str = item.data(0, Qt.UserRole)
+        if img_path_str is None:
+            # This is a folder, not a file
+            return
+        img_path = Path(img_path_str)
+        self._load_image_and_annotation(img_path)
+
+    def _auto_save_current(self) -> bool:
+        """
+        Auto-save the current annotation if there are boxes.
+        Returns True if save was performed or no save was needed, False on error.
+        """
+        if self.current_image_path is None:
+            return True  # No image loaded, nothing to save
+        
+        if self.cur_shapes_layer is None or len(self.cur_shapes_layer.data) == 0:
+            return True  # No boxes to save
+        
+        # Perform save
+        return self._save_annotation_for_image(self.current_image_path)
+
+    def _save_annotation_for_image(self, img_path: Path) -> bool:
+        """
+        Save both JSON and CSV annotation files for the given image.
+        Returns True on success, False on failure.
+        """
+        if self.cur_shapes_layer is None:
+            show_info('No shapes layer to save.')
+            return False
+
+        bboxes = self.cur_shapes_layer.data
+        if len(bboxes) == 0:
+            show_info('No organoids to save.')
+            return False
+
+        # Get labels from edge colors
+        labels, all_valid = self._assign_labels()
+        if not all_valid:
+            show_error("Some organoids have not been assigned a valid class. Please classify all organoids before saving.")
+            return False
+
+        # Prepare file paths
+        json_path = img_path.with_suffix('.json')
+        csv_path = img_path.with_suffix('.csv')
+
+        # Get bounding box data
+        properties = self.cur_shapes_layer.properties
+        box_ids = properties.get('box_id', list(range(len(bboxes))))
+        scores = properties.get('scores', [1.0] * len(bboxes))
+        scale = self.cur_shapes_layer.scale
+
+        # Save JSON (boxes)
+        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
+        utils.write_to_json(str(json_path), data_json)
+
+        # Save CSV (features)
+        data_csv = utils.get_bbox_diameters(bboxes, box_ids, scale, labels)
+        utils.write_to_csv(str(csv_path), data_csv)
+
+        show_info(f'Saved annotation to {json_path.name}')
+        return True
+
+    def _load_image_and_annotation(self, img_path: Path):
+        """Load an image and its annotation (if exists) into napari."""
+        # Auto-save current annotation before loading new image
+        self._auto_save_current()
+
+        # Clear existing layers related to the previous image
+        layers_to_remove = []
+        for layer in self.viewer.layers:
+            if isinstance(layer, (layers.Image, layers.Shapes)):
+                layers_to_remove.append(layer.name)
+        for name in layers_to_remove:
+            if name in self.viewer.layers:
+                del self.viewer.layers[name]
+
+        # Load the new image
+        self.viewer.open(str(img_path))
+        self.current_image_path = img_path
+
+        # Update the image layer name in the widget
+        new_image_names = self._get_layer_names()
+        if new_image_names:
+            self.image_layer_name = new_image_names[-1]
+
+        # Check for existing annotation and load it
+        json_path = img_path.with_suffix('.json')
+        if json_path.exists():
+            from napari_organoid_counter._reader import reader_function
+            layer_data = reader_function(str(json_path))
+            if layer_data:
+                for data, attrs, layer_type in layer_data:
+                    if layer_type == 'shapes':
+                        self.viewer.add_shapes(data, **attrs)
+
+        # Refresh the tree to show updated status
+        self._refresh_file_tree()
+
+    def _on_save_annotation_clicked(self):
+        """Handle Save Annotation button click."""
+        if self.current_image_path is None:
+            show_info('No image loaded from Data Browser. Please select an image first.')
+            return
+        
+        if self._save_annotation_for_image(self.current_image_path):
+            self._refresh_file_tree()
+
+    def _on_next_image_clicked(self):
+        """Find and load the next unannotated image."""
+        # First, save current annotation
+        if not self._auto_save_current():
+            return  # Save failed, don't proceed
+
+        self._refresh_file_tree()
+
+        # Find the next unannotated image
+        if not self.image_files:
+            show_info('No images in folder. Please select a folder first.')
+            return
+
+        # Find current image index
+        current_idx = -1
+        if self.current_image_path is not None:
+            try:
+                current_idx = self.image_files.index(self.current_image_path)
+            except ValueError:
+                current_idx = -1
+
+        # Search for next unannotated image starting from current position
+        n = len(self.image_files)
+        for i in range(1, n + 1):
+            idx = (current_idx + i) % n
+            img_path = self.image_files[idx]
+            if not self._is_image_annotated(img_path):
+                self._load_image_and_annotation(img_path)
+                return
+
+        show_info('All images have been annotated!')
 
     def _get_layer_names(self, layer_type: layers.Layer = layers.Image) -> List[str]:
         """
