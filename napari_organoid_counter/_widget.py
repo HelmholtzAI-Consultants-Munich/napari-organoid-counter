@@ -1547,7 +1547,9 @@ class OrganoidCounterWidget(QWidget):
         self.image_files = []
         folder = Path(folder_path)
         for file_path in sorted(folder.rglob('*')):
-            if file_path.is_file() and file_path.suffix in self.supported_image_extensions:
+            if (file_path.is_file()
+                    and not file_path.name.startswith('.')
+                    and file_path.suffix in self.supported_image_extensions):
                 self.image_files.append(file_path)
 
     def _populate_file_tree(self):
@@ -1691,6 +1693,19 @@ class OrganoidCounterWidget(QWidget):
         new_image_names = self._get_layer_names()
         if new_image_names:
             self.image_layer_name = new_image_names[-1]
+            # Convert to grayscale if needed
+            img_layer = self.viewer.layers[self.image_layer_name]
+            img_data = utils.squeeze_img(img_layer.data)
+            if len(img_data.shape) == 3 and img_data.shape[-1] in (3, 4):
+                # RGB or RGBA image - convert to grayscale
+                from skimage.color import rgb2gray
+                gray_data = rgb2gray(img_data[..., :3])
+                # Scale to original dtype range
+                if img_layer.data.dtype == np.uint8:
+                    gray_data = (gray_data * 255).astype(np.uint8)
+                elif img_layer.data.dtype == np.uint16:
+                    gray_data = (gray_data * 65535).astype(np.uint16)
+                img_layer.data = gray_data
 
         # Check for existing annotation and load it
         json_path = img_path.with_suffix('.json')
