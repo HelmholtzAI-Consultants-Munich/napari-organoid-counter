@@ -13,12 +13,12 @@ except Exception:
     pass
 
 
-readable_extensions = '.json'
+readable_extensions = ('.json', '.json.draft')
 
 def get_reader(path):
     """ A basic implementation of the napari_get_reader hook specification """
     # if we know we cannot read the file, we immediately return None.
-    if not path.endswith(readable_extensions):
+    if not any(path.endswith(ext) for ext in readable_extensions):
         return None
     # otherwise we return the *function* that can read ``path``.
     return reader_function

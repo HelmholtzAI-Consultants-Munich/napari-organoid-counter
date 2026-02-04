@@ -15,6 +15,7 @@ import numpy as np
 from pathlib import Path
 
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QBrush, QColor
 from qtpy.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
@@ -524,8 +525,6 @@ class OrganoidCounterWidget(QWidget):
                            self.window_overlap)
         
         raw_total = self.organoiDL.pred_bboxes[labels_layer_name].size(0)
-        print(f"Backend detected {raw_total} boxes (before any filtering).")
-
         if self.organoiDL.cancel_requested:
             self.cancel_btn.setEnabled(False)
             self.viewer.window._status_bar._toggle_activity_dock(False)
@@ -722,6 +721,8 @@ class OrganoidCounterWidget(QWidget):
                 if np.allclose(edge_color[:3], settings.COLOR_DEFAULT[:3], rtol=1e-3, atol=1e-3):
                     labels.append(-1)  # Assign -1 for default/unassigned boxes
                     matched = True
+                    if validate:
+                        all_valid = False  # Unassigned boxes are invalid for full save
                 else:
                     # Check against all color mappings to find the actual class number
                     for class_num, (color_rgba, color_name) in settings.COLOR_MAPPING.items():
@@ -1522,9 +1523,13 @@ class OrganoidCounterWidget(QWidget):
         buttons_row.addStretch(1)
         self.save_annotation_btn = QPushButton('Save Annotation')
         self.save_annotation_btn.clicked.connect(self._on_save_annotation_clicked)
+        self.save_incomplete_btn = QPushButton('Save as a draft')
+        self.save_incomplete_btn.clicked.connect(self._on_save_incomplete_annotation_clicked)
         self.next_image_btn = QPushButton('Next Image')
         self.next_image_btn.clicked.connect(self._on_next_image_clicked)
         buttons_row.addWidget(self.save_annotation_btn)
+        buttons_row.addSpacing(15)
+        buttons_row.addWidget(self.save_incomplete_btn)
         buttons_row.addSpacing(15)
         buttons_row.addWidget(self.next_image_btn)
         buttons_row.addStretch(1)
@@ -1561,6 +1566,7 @@ class OrganoidCounterWidget(QWidget):
         root_path = Path(self.data_folder)
         # Dictionary to store folder items for hierarchy
         folder_items: dict[Path, QTreeWidgetItem] = {}
+        current_item_to_select = None
 
         for img_path in self.image_files:
             # Get relative path from root
@@ -1588,7 +1594,15 @@ class OrganoidCounterWidget(QWidget):
             file_item.setText(0, img_path.name)
             file_item.setData(0, Qt.UserRole, str(img_path))  # Store full path
             if self._is_image_annotated(img_path):
-                file_item.setForeground(0, Qt.green)
+                if self._is_image_annotation_incomplete(img_path):
+                    file_item.setForeground(0, Qt.yellow)
+                else:
+                    file_item.setForeground(0, Qt.green)
+
+            # Highlight the currently loaded image
+            if self.current_image_path is not None and img_path == self.current_image_path:
+                file_item.setBackground(0, QBrush(QColor(145, 145, 145)))  # Light blue
+                # current_item_to_select = file_item
 
             if current_parent is None:
                 self.file_tree.addTopLevelItem(file_item)
@@ -1598,10 +1612,18 @@ class OrganoidCounterWidget(QWidget):
         # Expand all folders by default
         self.file_tree.expandAll()
 
+    def _draft_json_path(self, img_path: Path) -> Path:
+        """Return the path for the draft (incomplete) annotation file."""
+        return img_path.with_suffix('.json.draft')
+
+    def _is_image_annotation_incomplete(self, img_path: Path) -> bool:
+        """True if the image has a draft (incomplete) annotation file."""
+        return self._draft_json_path(img_path).exists()
+
     def _is_image_annotated(self, img_path: Path) -> bool:
-        """Check if a corresponding JSON annotation file exists."""
+        """Check if a corresponding JSON or draft annotation file exists."""
         json_path = img_path.with_suffix('.json')
-        return json_path.exists()
+        return json_path.exists() or self._draft_json_path(img_path).exists()
 
     def _refresh_file_tree(self):
         """Refresh the file tree to update annotation status indicators."""
@@ -1620,14 +1642,22 @@ class OrganoidCounterWidget(QWidget):
         """
         Auto-save the current annotation if there are boxes.
         Returns True if save was performed or no save was needed, False on error.
+        When the current image has only a draft (no complete .json), saves as draft
+        so switching images does not overwrite the draft with a full save.
         """
         if self.current_image_path is None:
             return True  # No image loaded, nothing to save
-        
+
         if self.cur_shapes_layer is None or len(self.cur_shapes_layer.data) == 0:
             return True  # No boxes to save
-        
-        # Perform save
+
+        # If this image has only a draft (no complete .json), save as draft so we
+        # do not promote to complete when the user simply switches images.
+        json_path = self.current_image_path.with_suffix('.json')
+        json_draft_path = self._draft_json_path(self.current_image_path)
+        if not json_path.exists() and json_draft_path.exists():
+            return self._save_incomplete_annotation_for_image(self.current_image_path)
+
         return self._save_annotation_for_image(self.current_image_path)
 
     def _save_annotation_for_image(self, img_path: Path) -> bool:
@@ -1668,7 +1698,49 @@ class OrganoidCounterWidget(QWidget):
         data_csv = utils.get_bbox_diameters(bboxes, box_ids, scale, labels)
         utils.write_to_csv(str(csv_path), data_csv)
 
+        # Remove draft file if present so image is treated as complete
+        draft_path = self._draft_json_path(img_path)
+        if draft_path.exists():
+            draft_path.unlink()
+
         show_info(f'Saved annotation to {json_path.name}')
+        return True
+
+    def _save_incomplete_annotation_for_image(self, img_path: Path) -> bool:
+        """
+        Save annotation as draft (incomplete): JSON only, no CSV, no requirement
+        that all organoids have a valid class. Returns True on success.
+        """
+        if self.cur_shapes_layer is None:
+            show_info('No shapes layer to save.')
+            return False
+
+        bboxes = self.cur_shapes_layer.data
+        if len(bboxes) == 0:
+            show_info('No organoids to save.')
+            return False
+
+        # Allow unassigned classes (validate=False)
+        labels, _ = self._assign_labels(validate=False)
+
+        draft_path = self._draft_json_path(img_path)
+        properties = self.cur_shapes_layer.properties
+        box_ids = properties.get('box_id', list(range(len(bboxes))))
+        scores = properties.get('scores', [1.0] * len(bboxes))
+        scale = self.cur_shapes_layer.scale
+
+        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
+        utils.write_to_json(str(draft_path), data_json)
+
+        # Remove complete annotation files if present so the image is draft-only
+        json_path = img_path.with_suffix('.json')
+        csv_path = img_path.with_suffix('.csv')
+        if json_path.exists():
+            json_path.unlink()
+        if csv_path.exists():
+            csv_path.unlink()
+
+        show_info(f'Saved draft annotation to {draft_path.name}')
         return True
 
     def _load_image_and_annotation(self, img_path: Path):
@@ -1685,33 +1757,48 @@ class OrganoidCounterWidget(QWidget):
             if name in self.viewer.layers:
                 del self.viewer.layers[name]
 
-        # Load the new image
-        self.viewer.open(str(img_path))
+        # Load the new image (suppress tifffile OME discontiguous-storage warning for
+        # TIFFs where stored shape and OME metadata disagree, e.g. (H,W,3) vs (H,W))
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                'ignore',
+                message='.*OME series cannot handle discontiguous storage.*',
+            )
+            self.viewer.open(str(img_path))
         self.current_image_path = img_path
 
-        # Update the image layer name in the widget
+        # Update the image layer name in the widget and convert RGB to grayscale if needed
         new_image_names = self._get_layer_names()
         if new_image_names:
             self.image_layer_name = new_image_names[-1]
-            # Convert to grayscale if needed
             img_layer = self.viewer.layers[self.image_layer_name]
-            img_data = utils.squeeze_img(img_layer.data)
+            img_data = utils.squeeze_img(np.asarray(img_layer.data))
             if len(img_data.shape) == 3 and img_data.shape[-1] in (3, 4):
-                # RGB or RGBA image - convert to grayscale
+                # RGB or RGBA: convert to grayscale and replace with a new 2D layer
+                # (replacing data in-place breaks napari's transform chain for 2D vs 3D)
                 from skimage.color import rgb2gray
                 gray_data = rgb2gray(img_data[..., :3])
-                # Scale to original dtype range
-                if img_layer.data.dtype == np.uint8:
+                if img_data.dtype == np.uint8:
                     gray_data = (gray_data * 255).astype(np.uint8)
-                elif img_layer.data.dtype == np.uint16:
+                elif img_data.dtype == np.uint16:
                     gray_data = (gray_data * 65535).astype(np.uint16)
-                img_layer.data = gray_data
+                else:
+                    gray_data = gray_data.astype(img_data.dtype)
+                scale = np.array(img_layer.scale)
+                if scale.size > 2:
+                    scale = scale[:2]  # 2D (y, x) for image
+                layer_name = self.image_layer_name
+                del self.viewer.layers[layer_name]
+                self.viewer.add_image(gray_data, name=layer_name, scale=tuple(scale))
+                self.image_layer_name = layer_name
 
-        # Check for existing annotation and load it
+        # Check for existing annotation and load it (.json first, then .json.draft)
         json_path = img_path.with_suffix('.json')
-        if json_path.exists():
+        draft_path = self._draft_json_path(img_path)
+        annot_path = json_path if json_path.exists() else (draft_path if draft_path.exists() else None)
+        if annot_path is not None:
             from napari_organoid_counter._reader import reader_function
-            layer_data = reader_function(str(json_path))
+            layer_data = reader_function(str(annot_path))
             if layer_data:
                 for data, attrs, layer_type in layer_data:
                     if layer_type == 'shapes':
@@ -1727,6 +1814,15 @@ class OrganoidCounterWidget(QWidget):
             return
         
         if self._save_annotation_for_image(self.current_image_path):
+            self._refresh_file_tree()
+
+    def _on_save_incomplete_annotation_clicked(self):
+        """Handle Save as a draft button click."""
+        if self.current_image_path is None:
+            show_info('No image loaded from Data Browser. Please select an image first.')
+            return
+
+        if self._save_incomplete_annotation_for_image(self.current_image_path):
             self._refresh_file_tree()
 
     def _on_next_image_clicked(self):
