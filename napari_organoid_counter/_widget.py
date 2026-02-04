@@ -15,7 +15,7 @@ import numpy as np
 from pathlib import Path
 
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QBrush, QColor
+from qtpy.QtGui import QBrush, QColor, QFontMetrics
 from qtpy.QtWidgets import (
     QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
@@ -28,6 +28,25 @@ from napari_organoid_counter import settings
 
 import warnings
 warnings.filterwarnings("ignore")
+
+
+class _ExpandableImageNameEdit(QLineEdit):
+    """Read-only line edit that expands to show full text when clicked/focused."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._collapsed_min_width = 80
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        text = self.text() or self.placeholderText()
+        if text:
+            width = QFontMetrics(self.font()).horizontalAdvance(text) + 24
+            self.setMinimumWidth(max(self._collapsed_min_width, width))
+
+    def focusOutEvent(self, event):
+        self.setMinimumWidth(self._collapsed_min_width)
+        super().focusOutEvent(event)
 
 
 class OrganoidCounterWidget(QWidget):
@@ -384,6 +403,10 @@ class OrganoidCounterWidget(QWidget):
         if len(removed_image_layer_names)>0:
             self._update_removed_image(removed_image_layer_names)
             self.image_layer_names = new_image_layer_names
+            # If current image was removed, show first remaining if any
+            if self.image_layer_name is None and self.image_layer_names:
+                self.image_layer_name = self.image_layer_names[0]
+                self._update_image_name_display()
         if len(removed_shape_layer_names)>0:
             self._update_remove_shapes(removed_shape_layer_names)
             self.shape_layer_names = new_shape_layer_names
@@ -659,10 +682,10 @@ class OrganoidCounterWidget(QWidget):
         if len(self.shape_layer_names)==0: return
         self._rerun()
 
-    def _on_image_selection_changed(self):
-        """ Is called whenever a new image has been selected from the drop down box """
-        self.image_layer_name = self.image_layer_selection.currentText()
-    
+    def _update_image_name_display(self):
+        """Update the read-only image name box to show the current image layer name."""
+        if hasattr(self, 'image_layer_selection') and self.image_layer_selection is not None:
+            self.image_layer_selection.setText(self.image_layer_name or '')
 
     def _on_reset_click(self):
         """ Is called whenever Reset Configs button is clicked """
@@ -797,25 +820,26 @@ class OrganoidCounterWidget(QWidget):
 
     def _update_added_image(self, added_items):
         """
-        Update the selection box with new images if images have been added and update the self.original_images and self.original_contrast dicts.
+        Update the image name display when images have been added and update the self.original_images and self.original_contrast dicts.
         Set the latest added image to the current working image (self.image_layer_name)
         """
         for layer_name in added_items:
-            self.image_layer_selection.addItem(layer_name)
             self.original_images[layer_name] = self.viewer.layers[layer_name].data
             self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
+        self._update_image_name_display()
 
     def _update_removed_image(self, removed_layers):
         """
-        Update the selection box by removing image names if image has been deleted and remove items from self.original_images and self.original_contrast dicts.
+        Remove deleted images from self.original_images and self.original_contrast dicts,
+        and update the image name display if the current image was removed.
         """
-        # update drop-down selection box and remove image from dict
         for removed_layer in removed_layers:
-            item_id = self.image_layer_selection.findText(removed_layer)
-            self.image_layer_selection.removeItem(item_id)
             del self.original_images[removed_layer]
             del self.original_contrast[removed_layer]
+        if self.image_layer_name in removed_layers:
+            self.image_layer_name = None
+            self._update_image_name_display()
 
     def _setup_mouse_callback(self):
         """Set up a mouse move callback to display box IDs in the status bar."""
@@ -1076,12 +1100,12 @@ class OrganoidCounterWidget(QWidget):
         # setup label
         image_label = QLabel('Image: ', self)
         image_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # setup drop down option for selecting which image to process
-        self.image_layer_selection = QComboBox()
-        if self.image_layer_names is not None:
-            for name in self.image_layer_names: self.image_layer_selection.addItem(name)
-        #self.image_layer_selection.setItemText(self.image_layer_name)
-        self.image_layer_selection.currentIndexChanged.connect(self._on_image_selection_changed)
+        # read-only box showing the current image name; expands on click to show full name
+        self.image_layer_selection = _ExpandableImageNameEdit(self)
+        self.image_layer_selection.setReadOnly(True)
+        self.image_layer_selection.setPlaceholderText('No image loaded')
+        if self.image_layer_name:
+            self.image_layer_selection.setText(self.image_layer_name)
         # setup preprocess button to improve visualisation
         preprocess_btn = QPushButton("Preprocess")
         preprocess_btn.clicked.connect(self._on_preprocess_click)
@@ -1771,6 +1795,7 @@ class OrganoidCounterWidget(QWidget):
         new_image_names = self._get_layer_names()
         if new_image_names:
             self.image_layer_name = new_image_names[-1]
+            self._update_image_name_display()
             img_layer = self.viewer.layers[self.image_layer_name]
             img_data = utils.squeeze_img(np.asarray(img_layer.data))
             if len(img_data.shape) == 3 and img_data.shape[-1] in (3, 4):
