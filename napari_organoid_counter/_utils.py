@@ -16,6 +16,16 @@ from torchvision.ops import nms
 from napari_organoid_counter import settings
 import torch.nn.functional as F
 
+from mmengine import Config
+from mmdet.apis import init_detector
+
+
+EXCLUDED_MODELS = [
+    "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth",
+    "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx",
+    "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
+    "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
+]
 
 def add_local_models():
     """ Checks the models directory for any local models previously added by the user.
@@ -24,7 +34,7 @@ def add_local_models():
     model_names_in_dir = [file for file in os.listdir(settings.MODELS_DIR)]
     model_names_in_dict = [settings.MODELS[key]["filename"] for key in settings.MODELS.keys()]
     for model_name in model_names_in_dir:
-        if model_name not in model_names_in_dict and model_name.endswith(settings.MODEL_TYPE):
+        if model_name not in model_names_in_dict and model_name.endswith(settings.MODEL_TYPE) and model_name not in EXCLUDED_MODELS:
             _ = add_to_dict(model_name)
 
 def add_to_dict(filepath):
@@ -216,6 +226,45 @@ def prepare_img(test_img, step, window_size, rescale_factor):
     test_img = test_img[..., ::-1] 
     
     return test_img, img_height, img_width
+
+def get_model_preprocessing_params(config_path, model_path):
+    """
+    Extract input size, mean, and std from model configuration.
+    
+    Returns:
+        tuple: (input_size, mean, std)
+            - input_size: tuple (height, width)
+            - mean: numpy array of shape (3,)
+            - std: numpy array of shape (3,)
+    """    
+    # Load config
+    cfg = Config.fromfile(config_path)
+    
+    # Get input size from test pipeline
+    test_pipeline = cfg.test_dataloader.dataset.pipeline
+    input_size = None
+    for transform in test_pipeline:
+        if transform['type'] == 'Resize':
+            input_size = transform.get('scale', (800, 1333))  # Fallback to Faster R-CNN default if not specified
+            break
+    
+    if input_size is None:
+        raise ValueError(f"Could not find input size in config: {config_path}")
+    
+    # Load model to get mean and std
+    model = init_detector(config_path, model_path, device="cpu")
+    
+    if hasattr(model.data_preprocessor, 'mean'):
+        mean = model.data_preprocessor.mean.cpu().numpy().squeeze()
+        std = model.data_preprocessor.std.cpu().numpy().squeeze()
+    else:
+        # Default normalization if not specified
+        mean = np.array([0.0, 0.0, 0.0])
+        std = np.array([255.0, 255.0, 255.0])
+    
+    del model
+    
+    return input_size, mean, std
 
 def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
     """ Function applies non max suppression to iteratively remove lower scoring boxes which have an IoU greater than iou_threshold 
