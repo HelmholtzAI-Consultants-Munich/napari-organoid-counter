@@ -79,7 +79,7 @@ class OrganoidCounterWidget(QWidget):
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
         utils.add_local_models()
-        self.model_id = 4 # yolov3
+        self.model_id = 2 # yolov3
         self.model_name = list(settings.MODELS.keys())[self.model_id]
         
         # init params 
