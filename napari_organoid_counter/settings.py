@@ -2,66 +2,79 @@ from pathlib import Path
 
 def init():
     
-    global MODELS
-    MODELS = {
-        "faster r-cnn": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth", 
-                         "source": "https://zenodo.org/records/17198934/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth"
-                         },
-        "faster r-cnn onnx": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx", 
-                         "source": "https://zenodo.org/records/17198934/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx"
-                         },
-        "ssd": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth", 
-                "source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.pth"
-                },
-        "ssd-onnx": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx", 
-                "source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx"
-                },
-        "yolov3": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth",
-                   "source": "https://zenodo.org/records/17198934/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth"
-                   },
-        "yolov3-onnx": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
-                   "source": "https://zenodo.org/records/17198934/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx"
-                   },
-        "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
-                    "source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
-                    },
-        "rtmdet-onnx":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
-                    "source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx"
-                    },
-    }
+	global MODELS
+	MODELS = {
+		"faster r-cnn": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth", 
+							"source": "https://zenodo.org/records/17198934/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth"
+							},
+		"faster r-cnn onnx": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx", 
+							"source": "https://zenodo.org/records/18700540/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx"
+							},
+		# "ssd": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth", 
+		# 		"source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.pth"
+		# 		},
+		# "ssd-onnx": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx", 
+		# 		"source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx"
+		# 		},
+		"yolov3": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth",
+					"source": "https://zenodo.org/records/17198934/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth"
+					},
+		"yolov3-onnx": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
+					"source": "https://zenodo.org/records/18700540/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx"
+					},
+		# "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
+		# 			"source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
+		# 			},
+		# "rtmdet-onnx":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
+		# 			"source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx"
+		# 			},
+	}
     
-    global MODELS_DIR
-    MODELS_DIR = Path.home() / ".cache/napari-organoid-counter/models"
+	global MODELS_DIR
+	MODELS_DIR = Path.home() / ".cache/napari-organoid-counter/models"
 
-    global MODEL_TYPE
-    MODEL_TYPE = '.pth'
+	global MODEL_TYPE
+	MODEL_TYPE = '.pth'
 
-    global CONFIGS
-    CONFIGS = {
-        "faster r-cnn": {"source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid.py",
-                        "destination": ".mim/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
-                        },
-        "ssd": {"source": "https://zenodo.org/records/11388549/files/ssd_organoid.py",
-                "destination": ".mim/configs/ssd/ssd_organoid.py"
-                },
-        "yolov3": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
-                "destination": ".mim/configs/yolo/yolov3_416_organoid.py"
-                },
-        "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
-                    "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
-                    }
+	global CONFIGS
+	CONFIGS = {
+		"faster r-cnn": {"source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid.py",
+						"destination": ".mim/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
+						},
+		# "ssd": {"source": "https://zenodo.org/records/11388549/files/ssd_organoid.py",
+		# 		"destination": ".mim/configs/ssd/ssd_organoid.py"
+		# 		},
+		"yolov3": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
+				"destination": ".mim/configs/yolo/yolov3_416_organoid.py"
+				},
+		# "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
+		# 			"destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
+		# 			}
 
-}
-    
-    # Add color definitions
-    global COLOR_CLASS_1
-    COLOR_CLASS_1 = [85 / 255, 1.0, 0, 1.0]  # Green
-    
-    global COLOR_CLASS_2
-    COLOR_CLASS_2 = [0, 29 / 255, 1.0, 1.0]  # Blue
+	}
 
-    global COLOR_DEFAULT
-    COLOR_DEFAULT = [1., 0, 1., 1.] # Magenta
+	# Map all model names (including ONNX variants) to their base config key
+	global CONFIG_MAP
+	CONFIG_MAP = {
+			'faster r-cnn': 'faster r-cnn',
+			'faster r-cnn onnx': 'faster r-cnn',
+			# 'ssd': 'ssd',
+			# 'ssd-onnx': 'ssd',
+			'yolov3': 'yolov3',
+			'yolov3-onnx': 'yolov3',
+			# 'rtmdet': 'rtmdet',
+			# 'rtmdet-onnx': 'rtmdet',
+	}
+
+	# Add color definitions
+	global COLOR_CLASS_1
+	COLOR_CLASS_1 = [85 / 255, 1.0, 0, 1.0]  # Green
+
+	global COLOR_CLASS_2
+	COLOR_CLASS_2 = [0, 29 / 255, 1.0, 1.0]  # Blue
+
+	global COLOR_DEFAULT
+	COLOR_DEFAULT = [1., 0, 1., 1.] # Magenta
 
 
 
