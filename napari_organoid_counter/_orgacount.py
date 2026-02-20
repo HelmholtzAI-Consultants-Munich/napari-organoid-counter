@@ -1,8 +1,11 @@
+import os
 from urllib.request import urlretrieve
 from napari.utils import progress
 
 from napari_organoid_counter._utils import *
 from napari_organoid_counter import settings
+
+
 
 import torch
 import onnxruntime as ort
@@ -76,7 +79,10 @@ class OrganoiDL():
         self.cur_confidence = 0.05
         self.cur_min_diam = 30
 
+        self.cancel_requested = False
+
         self.model = None
+        self.model_name = None
         self.model_type = 'mmdet' # to remove
         self.model_expect_size = (416, 416)
         self.input_name = None
@@ -84,6 +90,7 @@ class OrganoiDL():
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
+        self.pred_labels = {}
         self.pred_ids = {}
         self.next_id = {}
 
@@ -94,6 +101,7 @@ class OrganoiDL():
     def set_model(self, model_name):
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
+        self.model_name = model_name  # Store the model name
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
         if model_checkpoint.endswith('.onnx'):
             provider = get_best_provider()
@@ -144,7 +152,8 @@ class OrganoiDL():
                     prepadded_height,
                     prepadded_width,
                     pred_bboxes=[],
-                    scores_list=[]):
+                    scores_list=[], 
+                    labels_list=[]):
         ''' Runs sliding window inference and returns predicting bounding boxes and confidence scores for each box.
         Inputs
         ----------
@@ -160,10 +169,12 @@ class OrganoiDL():
             The image height before padding was applied
         prepadded_width: int
             The image width before padding was applied
-        pred_bboxes: list of
-            The
-        scores_list: list of
-            The
+        pred_bboxes: List
+            The list of existing predictions
+        scores_list: List
+            The list of existing confidence scores for corresponding boxes
+        labels_list: List
+            The list of existing labels for corresponding boxes
         Outputs
         ----------
         pred_bboxes: list of Tensors, default is an empty list
@@ -181,8 +192,11 @@ class OrganoiDL():
         target_h, target_w = self.model_expect_size
 
         # go across entire image using sliding window approach with a given window size and step
-        for i in progress(range(0, prepadded_height, step)):
+        for i in progress(range(0, prepadded_height, step)):            
             for j in progress(range(0, prepadded_width, step)):
+                if self.cancel_requested:
+                    print("Cancellation requested, stopping inference...")
+                    return pred_bboxes, scores_list, labels_list  # Return what we have so far   
                 if self.model_type == 'onnx':
                     img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
 
@@ -207,9 +221,9 @@ class OrganoiDL():
 
                     # Run inference
                     outputs = self.model.run(self.output_names, {self.input_name: img_crop})
-                    dets, _ = outputs  # dets, labels
+                    dets, labels = outputs  # dets, labels
                     dets = dets[0]
-                    print(dets.shape[0])
+                    labels = labels[0]
                     if dets.shape[0] == 0:
                         continue
                     else:
@@ -225,16 +239,14 @@ class OrganoiDL():
                             y2_real = torch.div(y2 + j, rescale_factor, rounding_mode='floor')
                             pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
                             scores_list.append(score)
+                            labels_list.append(labels[bbox_id])
                 else:
                     # crop
                     img_crop = test_img[i:(i+window_size), j:(j+window_size)]
                     # get predictions
                     output = self.model(img_crop, pred_score_thr=0.05)
                     preds = output['predictions'][0]['bboxes']
-                    print(len(preds))
-                    if len(preds) == 0:
-                        continue
-                    else:
+                    if len(preds) != 0:
                         for bbox_id in range(len(preds)):
                             y1, x1, y2, x2 = preds[bbox_id]
                             x1_real = torch.div(x1 + i, rescale_factor, rounding_mode='floor')
@@ -243,6 +255,7 @@ class OrganoiDL():
                             y2_real = torch.div(y2 + j, rescale_factor, rounding_mode='floor')
                             pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
                             scores_list.append(output['predictions'][0]['scores'][bbox_id])
+                            labels_list.append(output['predictions'][0]['labels'][bbox_id])
 
         # Calculate and print profiling results
         total_time = time.perf_counter() - start_time
@@ -261,7 +274,7 @@ class OrganoiDL():
         print(f"  - Average time per call:  {resize_time/resize_count:.6f} seconds" if resize_count > 0 else "  - Average time per call:  N/A")
         print(f"{'='*60}\n")
 
-        return pred_bboxes, scores_list
+        return pred_bboxes, scores_list, labels_list
 
     def run(self, 
             img, 
@@ -286,6 +299,7 @@ class OrganoiDL():
         ''' 
         bboxes = []
         scores = []
+        labels = []
         # run for all window sizes
         for window_size, downsampling in zip(window_sizes, downsampling_sizes):
             # compute the step for the sliding window, based on window overlap
@@ -305,46 +319,79 @@ class OrganoiDL():
                                                                             window_size,
                                                                             rescale_factor)          
             # and run sliding window over whole image
-            bboxes, scores = self.sliding_window(ready_img,
+            bboxes, scores, labels = self.sliding_window(ready_img,
                                                  step,
                                                  window_size,
                                                  rescale_factor,
                                                  prepadded_height,
                                                  prepadded_width,
                                                  bboxes,
-                                                 scores)
+                                                 scores, 
+                                                 labels)
+        
+        # if no predictions, store empty tensors so that downstream code still works
+        if len(bboxes) == 0:
+            self.pred_bboxes[shapes_name] = torch.empty((0, 4))
+            self.pred_scores[shapes_name] = torch.empty((0,))
+            self.pred_labels[shapes_name] = torch.empty((0,), dtype=torch.long)
+            self.pred_ids[shapes_name] = []
+            self.next_id[shapes_name] = 1
+            return
+
         # stack results
         bboxes = torch.stack(bboxes)
         scores = torch.Tensor(scores)
+        labels = torch.Tensor(labels)
         # apply NMS to remove overlaping boxes
-        bboxes, pred_scores = apply_nms(bboxes, scores)
+        bboxes, pred_scores, pred_labels = apply_nms(bboxes, scores, labels)
+        # For Detection Only models, set all boxes to class -1 (uncertain/unassigned)
+        # For classification models (BC/multiclass), keep the predicted classes
+        if self.model_name and "(DO)" in self.model_name:  # TODO: what about the annotation mode?
+            pred_labels = torch.full_like(pred_labels, -1)
+
         self.pred_bboxes[shapes_name] = bboxes
         self.pred_scores[shapes_name] = pred_scores
+        self.pred_labels[shapes_name] = pred_labels
         num_predictions = bboxes.size(0)
         self.pred_ids[shapes_name] = [(i+1) for i in range(num_predictions)]
         self.next_id[shapes_name] = num_predictions+1
 
-    def apply_params(self, shapes_name, confidence, min_diameter_um):
+    def apply_params(self, shapes_name, confidence, min_diameter_um, model_name):
         """ After results have been stored in dict this function will filter the dicts based on the confidence
         and min_diameter_um thresholds for the given results defined by shape_name and return the filtered dicts. """
         self.cur_confidence = confidence
         self.cur_min_diam = min_diameter_um
-        pred_bboxes, pred_scores, pred_ids = self._apply_confidence_thresh(shapes_name)
-        if pred_bboxes.size(0)!=0:
-            pred_bboxes, pred_scores, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_ids)
-        pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
-        return pred_bboxes, pred_scores, pred_ids
+        pred_bboxes, pred_scores, pred_labels, pred_ids = self._apply_confidence_thresh(shapes_name, model_name)
 
-    def _apply_confidence_thresh(self, shapes_name):
+        # If we are using binary classification (yolov3 (BC)), mark low-confidence boxes as uncertain
+        if model_name== 'yolov3 (BC)':
+           for idx, score in enumerate(pred_scores):
+                if score <= settings.CONFIDENCE_THRESHOLD_CLASS: # TODO: check what the score refers to: objectiness or class confidence?
+                    pred_labels[idx] = -1
+
+        # Filter small organoids based on diameter after labeling uncertain predictions
+        if pred_bboxes.size(0)!=0:
+            pred_bboxes, pred_scores, pred_labels, pred_ids = self._filter_small_organoids(pred_bboxes, pred_scores, pred_labels, pred_ids)
+        pred_bboxes = convert_boxes_to_napari_view(pred_bboxes)
+        return pred_bboxes, pred_scores, pred_labels, pred_ids
+
+    def _apply_confidence_thresh(self, shapes_name, model_name):
         """ Filters out results of shapes_name based on the current confidence threshold. """
         if shapes_name not in self.pred_bboxes.keys(): return torch.empty((0))
-        keep = (self.pred_scores[shapes_name]>self.cur_confidence).nonzero(as_tuple=True)[0]
+
+        # Apply confidence threshold
+        keep = (self.pred_scores[shapes_name] > self.cur_confidence).nonzero(as_tuple=True)[0]
         result_bboxes = self.pred_bboxes[shapes_name][keep]
         result_scores = self.pred_scores[shapes_name][keep]
+        result_labels = self.pred_labels[shapes_name][keep]
         result_ids = [self.pred_ids[shapes_name][int(i)] for i in keep.tolist()]
-        return result_bboxes, result_scores, result_ids
-    
-    def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_ids):
+
+        # Ensure next_id remains monotonic by setting it to one higher than the max kept ID
+        self.next_id[shapes_name] = max(self.pred_ids[shapes_name], default=0) + 1
+
+        return result_bboxes, result_scores, result_labels, result_ids
+
+    def _filter_small_organoids(self, pred_bboxes, pred_scores, pred_labels, pred_ids):
         """ Filters out small result boxes of shapes_name based on the current min diameter size. """
         if pred_bboxes is None: return None
         if len(pred_bboxes)==0: return None
@@ -356,10 +403,11 @@ class OrganoiDL():
             if (dx >= min_diameter_x and dy >= min_diameter_y) or pred_scores[idx] == 1: keep.append(idx) 
         pred_bboxes = pred_bboxes[keep]
         pred_scores = pred_scores[keep]
+        pred_labels = pred_labels[keep]
         pred_ids = [pred_ids[i] for i in keep]
-        return pred_bboxes, pred_scores, pred_ids
+        return pred_bboxes, pred_scores, pred_labels, pred_ids
 
-    def update_bboxes_scores(self, shapes_name, new_bboxes, new_scores, new_ids):
+    def update_bboxes_scores(self, shapes_name, new_bboxes, new_scores, new_labels, new_ids):
         ''' Updated the results dicts, self.pred_bboxes, self.pred_scores and self.pred_ids with new results.
         If the shapes name doesn't exist as a key in the dicts the results are added with the new key. If the
         key exists then new_bboxes, new_scores and new_ids are compared to the class result dicts and the dicts 
@@ -367,11 +415,13 @@ class OrganoiDL():
         
         new_bboxes = convert_boxes_from_napari_view(new_bboxes)
         new_scores =  torch.Tensor(list(new_scores))
+        new_labels = torch.Tensor(list(new_labels))
         new_ids = list(new_ids)
         # if run hasn't been run
         if shapes_name not in self.pred_bboxes.keys():
             self.pred_bboxes[shapes_name] = new_bboxes
             self.pred_scores[shapes_name] = new_scores
+            self.pred_labels[shapes_name] = new_labels
             self.pred_ids[shapes_name] = new_ids
             self.next_id[shapes_name] = len(new_ids)+1
 
@@ -387,8 +437,22 @@ class OrganoiDL():
                 #  and add them
                 self.pred_bboxes[shapes_name] = torch.cat((self.pred_bboxes[shapes_name], new_bboxes[added_ids]))
                 self.pred_scores[shapes_name] = torch.cat((self.pred_scores[shapes_name], new_scores[added_ids]))
+                self.pred_labels[shapes_name] = torch.cat((self.pred_labels[shapes_name], new_labels[added_ids]))
                 new_ids_to_add = [new_ids[i] for i in added_ids]
                 self.pred_ids[shapes_name].extend(new_ids_to_add)
+            
+            # Update existing boxes that have been modified (resized or class changed)
+            # For each box_id that exists in both old and new, update its geometry and label
+            common_box_ids = list(set(new_ids).intersection(self.pred_ids[shapes_name]))
+            for box_id in common_box_ids:
+                new_idx = new_ids.index(box_id)
+                old_idx = self.pred_ids[shapes_name].index(box_id)
+                # Update bbox coordinates (handles resizing)
+                self.pred_bboxes[shapes_name][old_idx] = new_bboxes[new_idx]
+                # Update scores (in case user modified manually added boxes)
+                self.pred_scores[shapes_name][old_idx] = new_scores[new_idx]
+                # Update labels (handles class assignment changes)
+                self.pred_labels[shapes_name][old_idx] = new_labels[new_idx]
             
             # and find ids that are in self.pred_ids and not in new_ids
             potential_removed_box_ids = list(set(self.pred_ids[shapes_name]).difference(new_ids))
@@ -403,6 +467,7 @@ class OrganoiDL():
                 for idx in reversed(remove_ids):
                     self.pred_bboxes[shapes_name] = torch.cat((self.pred_bboxes[shapes_name][:idx, :], self.pred_bboxes[shapes_name][idx+1:, :]))
                     self.pred_scores[shapes_name] = torch.cat((self.pred_scores[shapes_name][:idx], self.pred_scores[shapes_name][idx+1:]))
+                    self.pred_labels[shapes_name] = torch.cat((self.pred_labels[shapes_name][:idx], self.pred_labels[shapes_name][idx+1:]))
                     new_pred_ids = self.pred_ids[shapes_name][:idx]
                     new_pred_ids.extend(self.pred_ids[shapes_name][idx+1:])
                     self.pred_ids[shapes_name] = new_pred_ids
@@ -411,11 +476,23 @@ class OrganoiDL():
         """ Updates the next id to append to result dicts. If input c is given then that will be the next id. """
         if c!=0:
             self.next_id[shapes_name] = c
-        else: self.next_id[shapes_name] += 1
+        else: 
+            # Reset next_id to one higher than the current max ID (or 1 if no boxes remain)
+            self.next_id[shapes_name] = max(self.pred_ids[shapes_name], default=0) + 1
 
     def remove_shape_from_dict(self, shapes_name):
         """ Removes results of shapes_name from all result dicts. """
         del self.pred_bboxes[shapes_name]
         del self.pred_scores[shapes_name]
+        del self.pred_labels[shapes_name]
         del self.pred_ids[shapes_name]
         del self.next_id[shapes_name]
+
+    def rename_shape_key(self, old_name: str, new_name: str):
+        """Rename a prediction set across all internal dicts."""
+        for d in (self.pred_bboxes, self.pred_scores, self.pred_labels, self.pred_ids, self.next_id):
+            if old_name in d and new_name not in d:
+                d[new_name] = d.pop(old_name)
+            elif old_name in d and new_name in d:
+                # merge conservatively: prefer existing 'new_name' and drop 'old_name'
+                d.pop(old_name)

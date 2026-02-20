@@ -15,4 +15,5 @@ contributions:
     - command: napari-organoid-counter.get_reader
       filename_patterns:
       - '*.json'
+      - '*.json.draft'
       accepts_directories: false

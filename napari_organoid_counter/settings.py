@@ -4,30 +4,33 @@ def init():
     
 	global MODELS
 	MODELS = {
-		"faster r-cnn": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth", 
+		"faster r-cnn (DO)": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth", 
 							"source": "https://zenodo.org/records/17198934/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.pth"
 							},
-		"faster r-cnn onnx": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx", 
+		"faster r-cnn onnx (DO)": {"filename": "faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx", 
 							"source": "https://zenodo.org/records/18700540/files/faster-rcnn_r50_fpn_organoid_best_coco_bbox_mAP_epoch_68.onnx"
 							},
-		# "ssd": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth", 
+		# "ssd (DO)": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth", 
 		# 		"source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.pth"
 		# 		},
 		# "ssd-onnx": {"filename": "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx", 
 		# 		"source": "https://zenodo.org/records/17198934/files/ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx"
 		# 		},
-		"yolov3": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth",
+		"yolov3 (DO)": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth",
 					"source": "https://zenodo.org/records/17198934/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.pth"
 					},
-		"yolov3-onnx": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
+		"yolov3-onnx (DO)": {"filename": "yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx",
 					"source": "https://zenodo.org/records/18700540/files/yolov3_416_organoid_best_coco_bbox_mAP_epoch_27.onnx"
 					},
-		# "rtmdet":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
+		# "rtmdet (DO)":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
 		# 			"source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth"
 		# 			},
 		# "rtmdet-onnx":  {"filename": "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
 		# 			"source": "https://zenodo.org/records/17198934/files/rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx"
 		# 			},
+        # "yolov3 (BC)": {"filename": "best_coco_bbox_mAP_epoch_2.pth",
+        #                 "source": "https://zenodo.org/records/15129806/files/best_coco_bbox_mAP_epoch_2.pth"
+        #                 }
 	}
     
 	global MODELS_DIR
@@ -38,43 +41,86 @@ def init():
 
 	global CONFIGS
 	CONFIGS = {
-		"faster r-cnn": {"source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid.py",
-						"destination": ".mim/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
-						},
-		# "ssd": {"source": "https://zenodo.org/records/11388549/files/ssd_organoid.py",
-		# 		"destination": ".mim/configs/ssd/ssd_organoid.py"
-		# 		},
-		"yolov3": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
-				"destination": ".mim/configs/yolo/yolov3_416_organoid.py"
-				},
-		# "rtmdet":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
-		# 			"destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
-		# 			}
-
-	}
+        "faster r-cnn (DO)": {"source": "https://zenodo.org/records/11388549/files/faster-rcnn_r50_fpn_organoid.py",
+                        "destination": ".mim/configs/faster_rcnn/faster-rcnn_r50_fpn_organoid.py"
+                        },
+        # "ssd (DO)": {"source": "https://zenodo.org/records/11388549/files/ssd_organoid.py",
+        #         "destination": ".mim/configs/ssd/ssd_organoid.py"
+        #         },
+        "yolov3 (DO)": {"source": "https://zenodo.org/records/11388549/files/yolov3_416_organoid.py",
+                "destination": ".mim/configs/yolo/yolov3_416_organoid.py"
+                },
+        # "rtmdet (DO)":  {"source": "https://zenodo.org/records/11388549/files/rtmdet_l_organoid.py",
+        #             "destination": ".mim/configs/rtmdet/rtmdet_l_organoid.py"
+        #             },
+        # "yolov3 (BC)": {"source": "https://zenodo.org/records/15129806/files/yolov3_416_organoid_two_class.py",
+        #                 "destination": ".mim/configs/yolo/yolov3_416_organoid_two_class.py"
+        #                 }
+    }
 
 	# Map all model names (including ONNX variants) to their base config key
 	global CONFIG_MAP
 	CONFIG_MAP = {
-			'faster r-cnn': 'faster r-cnn',
-			'faster r-cnn onnx': 'faster r-cnn',
+			'faster r-cnn (DO)': 'faster r-cnn (DO)',
+			'faster r-cnn onnx (DO)': 'faster r-cnn (DO)',
 			# 'ssd': 'ssd',
 			# 'ssd-onnx': 'ssd',
-			'yolov3': 'yolov3',
-			'yolov3-onnx': 'yolov3',
+			'yolov3 (DO)': 'yolov3 (DO)',
+			'yolov3-onnx (DO)': 'yolov3 (DO)',
 			# 'rtmdet': 'rtmdet',
 			# 'rtmdet-onnx': 'rtmdet',
-	}
-
+                  }
+      
 	# Add color definitions
-	global COLOR_CLASS_1
-	COLOR_CLASS_1 = [85 / 255, 1.0, 0, 1.0]  # Green
-
-	global COLOR_CLASS_2
-	COLOR_CLASS_2 = [0, 29 / 255, 1.0, 1.0]  # Blue
-
 	global COLOR_DEFAULT
-	COLOR_DEFAULT = [1., 0, 1., 1.] # Magenta
+	COLOR_DEFAULT = [1., 0, 1., 1.]  # Magenta (default color for unclassified boxes)
 
+	# Binary Classification (2 classes) 
+	global COLOR_CLASS_0
+	COLOR_CLASS_0 = [85 / 255, 1.0, 0, 1.0]  # Green
+    
+	global COLOR_CLASS_1
+	COLOR_CLASS_1 = [0, 29 / 255, 1.0, 1.0]  # Blue
 
+	# Multi-Class Palette (up to 10 classes)
+	global COLOR_CLASS_2
+	COLOR_CLASS_2 = [1.0, 0.65, 0, 1.0]  # Orange
+    
+	global COLOR_CLASS_3
+	COLOR_CLASS_3 = [128/256, 0, 128/256, 1.0]  # Purple
 
+	global COLOR_CLASS_4
+	COLOR_CLASS_4 = [0.0, 1.0, 1.0, 1.0]  # Cyan
+
+	global COLOR_CLASS_5
+	COLOR_CLASS_5 = [1.0, 0, 0, 1.0]  # Red
+
+	global COLOR_CLASS_6
+	COLOR_CLASS_6 = [150/256, 75/256, 0/256, 1.0]  # Brown
+
+	global COLOR_CLASS_7
+	COLOR_CLASS_7 = [0.8, 0.1, 0.6, 1.0]  # Pink
+
+	global COLOR_CLASS_8
+	COLOR_CLASS_8 = [1.0, 1.0, 0.0, 1.0]  # Yellow
+
+	global COLOR_CLASS_9
+	COLOR_CLASS_9 = [0.3, 0.5, 1.0, 1.0]  # Light Blue
+
+	global COLOR_MAPPING
+	COLOR_MAPPING = {
+            0: (COLOR_CLASS_0, "Green"),
+            1: (COLOR_CLASS_1, "Blue"),
+            2: (COLOR_CLASS_2, "Orange"),
+            3: (COLOR_CLASS_3, "Purple"),
+            4: (COLOR_CLASS_4, "Cyan"),
+            5: (COLOR_CLASS_5, "Red"),
+            6: (COLOR_CLASS_6, "Brown"),
+            7: (COLOR_CLASS_7, "Pink"),
+            8: (COLOR_CLASS_8, "Yellow"),
+            9: (COLOR_CLASS_9, "Light Blue")
+        }
+    
+    # Confidence threshold fro class assignment
+	global CONFIDENCE_THRESHOLD_CLASS 
+	CONFIDENCE_THRESHOLD_CLASS = 0.7
