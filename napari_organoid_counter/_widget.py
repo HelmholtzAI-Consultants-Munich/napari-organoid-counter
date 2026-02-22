@@ -107,7 +107,7 @@ class OrganoidCounterWidget(QWidget):
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
         utils.add_local_models()
-        self.model_id = 2 # yolov3
+        self.model_id = 0
         self.model_name = list(settings.MODELS.keys())[self.model_id]
         
         # init params 
@@ -128,6 +128,8 @@ class OrganoidCounterWidget(QWidget):
         self.original_contrast = {}
         self.stored_confidences = {}
         self.stored_diameters = {}
+        self.output_widget = None
+        self.legend_box = None
 
         # Annotation Mode 
         self.annotation_mode = 2 # Default to Detection Only mode (0)
@@ -733,11 +735,12 @@ class OrganoidCounterWidget(QWidget):
 
     def on_annotation_mode_changed(self, mode):
         """Callback for dropdown selection."""
-        print(f"Annotation mode changed to {mode} xdxd")
         self.annotation_mode = mode
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
+        if self.output_widget is None:
+            return
         self._refresh_color_mapping_box()
     
     def _assign_labels(self, validate=True):
@@ -1266,9 +1269,11 @@ class OrganoidCounterWidget(QWidget):
         # Dropdown
         self.annotation_mode_dropdown = QComboBox()
         self.annotation_mode_dropdown.addItems(["Detection Only (DO)", "Binary Classification (BC)", "3 classes", "4 classes", "5 classes", "6 classes", "7 classes", "8 classes", "9 classes", "10 classes"])
-        self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
         # Set default selection based on current annotation mode
+        self.annotation_mode_dropdown.blockSignals(True)
         self.annotation_mode_dropdown.setCurrentIndex(self.annotation_mode)
+        self.annotation_mode_dropdown.blockSignals(False)
+        self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
         hbox.addWidget(self.annotation_mode_dropdown)
         
         return hbox
@@ -1403,7 +1408,12 @@ class OrganoidCounterWidget(QWidget):
         """
         Refresh the color mapping box based on the current annotation mode.
         """
+        if self.output_widget is None:
+            return
+
         layout = self.output_widget.layout()
+        if layout is None:
+            return
 
         # remove existing legend box from layout (if any)
         if self.legend_box is not None:
@@ -1876,6 +1886,7 @@ class OrganoidCounterWidget(QWidget):
                 del self.viewer.layers[layer_name]
                 self.viewer.add_image(gray_data, name=layer_name, scale=tuple(scale))
                 self.image_layer_name = layer_name
+            self._preprocess()
 
         # Check for existing annotation and load it (.json first, then .json.draft)
         json_path = img_path.with_suffix('.json')
@@ -1905,13 +1916,13 @@ class OrganoidCounterWidget(QWidget):
         """
         Suggest the best annotation mode based on the classes present in the loaded annotation.
         """
-        num_classes = len(set(labels))
-        if num_classes == 1 and -1 in labels:
+        max_class = max(labels) if labels else -1
+        if max_class == -1:
             return 0  # Detection Only
-        elif num_classes <= 2:
+        elif max_class <= 1:
             return 1  # Binary Classification
-        elif 3 <= num_classes <= 10:
-            return num_classes - 1  # Corresponding to "3 classes" → index 2, etc.
+        elif 2 <= max_class <= 9:
+            return max_class  # Corresponding to "2 classes" → index 3, etc.
         else:
             return self.annotation_mode  # No change if outside expected range
 

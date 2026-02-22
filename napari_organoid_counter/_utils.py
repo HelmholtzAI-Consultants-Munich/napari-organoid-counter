@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
-import pkgutil
 
 import numpy as np
 import pandas as pd
@@ -17,14 +16,8 @@ from torchvision.ops import nms
 from napari_organoid_counter import settings
 import torch.nn.functional as F
 
-from mmengine import Config
-from mmdet.apis import init_detector
-
-
 EXCLUDED_MODELS = [
-    "ssd_organoid_best_coco_bbox_mAP_epoch_86.pth",
     "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx",
-    "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.pth",
     "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
 ]
 
@@ -194,7 +187,7 @@ def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     test_img = (255*test_img).astype(np.uint8)
     test_img = gray2rgb(test_img) #[H,W,C]
 
-    # convert from RGB to GBR - expected from DetInferencer 
+    # convert from RGB to GBR to match exported model preprocessing
     test_img = test_img[..., ::-1] 
 
     test_img = test_img.astype(np.float32) / 255.0
@@ -205,65 +198,6 @@ def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     test_img = torch.from_numpy(test_img).to('cuda' if torch.cuda.is_available() else 'cpu')
     
     return test_img, img_height, img_width
-
-def prepare_img(test_img, step, window_size, rescale_factor):
-    """ The original image is prepared for running model inference """
-    # squeeze and resize image
-    test_img = squeeze_img(test_img)
-    test_img = rescale(test_img, rescale_factor, preserve_range=True)
-    img_height, img_width = test_img.shape
-    # pad image
-    pad_x = (img_height//step)*step + window_size - img_height
-    pad_y = (img_width//step)*step + window_size - img_width
-    test_img = np.pad(test_img, ((0, int(pad_x)), (0, int(pad_y))), mode='edge')
-    # normalise and convert to RGB - model input has size 3
-    test_img = (test_img-np.min(test_img))/(np.max(test_img)-np.min(test_img)) 
-    test_img = (255*test_img).astype(np.uint8)
-    test_img = gray2rgb(test_img) #[H,W,C]
-
-    # convert from RGB to GBR - expected from DetInferencer 
-    test_img = test_img[..., ::-1] 
-    
-    return test_img, img_height, img_width
-
-def get_model_preprocessing_params(config_path, model_path):
-    """
-    Extract input size, mean, and std from model configuration.
-    
-    Returns:
-        tuple: (input_size, mean, std)
-            - input_size: tuple (height, width)
-            - mean: numpy array of shape (3,)
-            - std: numpy array of shape (3,)
-    """    
-    # Load config
-    cfg = Config.fromfile(config_path)
-    
-    # Get input size from test pipeline
-    test_pipeline = cfg.test_dataloader.dataset.pipeline
-    input_size = None
-    for transform in test_pipeline:
-        if transform['type'] == 'Resize':
-            input_size = transform.get('scale', (800, 1333))  # Fallback to Faster R-CNN default if not specified
-            break
-    
-    if input_size is None:
-        raise ValueError(f"Could not find input size in config: {config_path}")
-    
-    # Load model to get mean and std
-    model = init_detector(config_path, model_path, device="cpu")
-    
-    if hasattr(model.data_preprocessor, 'mean'):
-        mean = model.data_preprocessor.mean.cpu().numpy().squeeze()
-        std = model.data_preprocessor.std.cpu().numpy().squeeze()
-    else:
-        # Default normalization if not specified
-        mean = np.array([0.0, 0.0, 0.0])
-        std = np.array([255.0, 255.0, 255.0])
-    
-    del model
-    
-    return input_size, mean, std
 
 def apply_nms(bbox_preds, scores_preds, labels_preds, iou_thresh=0.5):
     """ Function applies non max suppression to iteratively remove lower scoring boxes which have an IoU greater than iou_threshold 
@@ -312,32 +246,11 @@ def apply_normalization(img):
     # adapt img to range 0-255
     img_min = np.min(img) # 31.3125 png 0
     img_max = np.max(img) # 2899.25 png 178
-    img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
-    return img_norm
-
-def get_package_init_file(package_name):
-    loader = pkgutil.get_loader(package_name)
-    if loader is None or not hasattr(loader, 'get_filename'):
-        raise ImportError(f"Cannot find package {package_name}")
-    package_path = loader.get_filename(package_name)
-    # Determine the path to the __init__.py file
-    if os.path.isdir(package_path):
-        init_file_path = os.path.join(package_path, '__init__.py')
+    if img_min < 0 or img_max > 255:
+        img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
     else:
-        init_file_path = package_path
-    if not os.path.isfile(init_file_path):
-        raise FileNotFoundError(f"__init__.py file not found for package {package_name}")
-    return init_file_path
-
-# to remove
-def update_version_in_mmdet_init_file(package_name, old_version, new_version):
-    init_file_path = get_package_init_file(package_name)
-    with open(init_file_path, 'r') as file:
-        lines = file.readlines()
-    with open(init_file_path, 'w') as file:
-        for line in lines:
-            if f"mmcv_maximum_version = '{old_version}'" in line:
-                file.write(line.replace(old_version, new_version))
+        img_norm = img.astype(np.uint8)
+    return img_norm
 
 def get_edge_color(labels, use_default_color: bool):
     edge_color = []

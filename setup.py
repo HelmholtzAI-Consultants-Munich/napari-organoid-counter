@@ -26,9 +26,7 @@ setup(
         'napari-aicsimageio>=0.7.2',
         'torch<=2.5.1',
         'torchvision<=0.20.1',
-        'openmim',
-        'mmengine>=0.10.4',
-        'mmdet>=3.3.0',
+        'opencv-python',
         f'{onnxruntime_pkg}>=1.23.0',
     ],
     extras_require={

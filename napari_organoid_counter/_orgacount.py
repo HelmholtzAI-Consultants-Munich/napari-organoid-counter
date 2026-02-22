@@ -1,4 +1,3 @@
-import os
 from urllib.request import urlretrieve
 from napari.utils import progress
 
@@ -13,11 +12,6 @@ import onnxruntime as ort
 import time
 from contextlib import contextmanager
 import cv2
-
- # to remove
- #update_version_in_mmdet_init_file('mmdet', '2.2.0', '2.3.0')
-import mmdet
-from mmdet.apis import DetInferencer
 
 def get_best_provider():
     # List all available providers on this machine
@@ -83,10 +77,11 @@ class OrganoiDL():
 
         self.model = None
         self.model_name = None
-        self.model_type = 'mmdet' # to remove
         self.model_expect_size = (416, 416)
         self.input_name = None
         self.output_names = None
+        self.mean = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        self.std = np.array([255.0, 255.0, 255.0], dtype=np.float32)
         self.img_scale = [0., 0.]
         self.pred_bboxes = {}
         self.pred_scores = {}
@@ -101,41 +96,22 @@ class OrganoiDL():
     def set_model(self, model_name):
         ''' Initialise  model instance and load model checkpoint and send to device. '''
 
-        self.model_name = model_name  # Store the model name
+        self.model_name = model_name
         model_checkpoint = join_paths(str(settings.MODELS_DIR), settings.MODELS[model_name]["filename"])
-        if model_checkpoint.endswith('.onnx'):
-            provider = get_best_provider()
-            self.model = ort.InferenceSession(model_checkpoint, providers=[provider])
-            # Get input/output names
-            self.model_type = 'onnx'
-            self.input_name = self.model.get_inputs()[0].name
-            self.output_names = [o.name for o in self.model.get_outputs()]
-            
-            # Get model-specific preprocessing parameters
-            mmdet_path = os.path.dirname(mmdet.__file__)
-            base_model_name = settings.CONFIG_MAP.get(model_name, model_name)  # Use mapping
-            config_dst = join_paths(mmdet_path, str(settings.CONFIGS[base_model_name]["destination"]))
-            pth_checkpoint = model_checkpoint.replace('.onnx', '.pth')
-            
-            if not os.path.exists(config_dst):
-                urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
-            
-            self.input_size, self.mean, self.std = get_model_preprocessing_params(config_dst, pth_checkpoint)
-            self.model_expect_size = self.input_size
-            print(f"ONNX Model loaded: {model_name}")
-            print(f"  Input size: {self.input_size}")
-            print(f"  Mean: {self.mean}")
-            print(f"  Std: {self.std}")
-        else:
-            mmdet_path = os.path.dirname(mmdet.__file__)
-            config_dst = join_paths(mmdet_path, str(settings.CONFIGS[model_name]["destination"]))
-            # download the corresponding config if it doesn't exist already
-            if not os.path.exists(config_dst):
-                urlretrieve(settings.CONFIGS[model_name]["source"], config_dst, self.handle_progress)
-            self.model = DetInferencer(config_dst, model_checkpoint, self.device, show_progress=False)
-            self.model_type = 'mmdet'
+        if not model_checkpoint.endswith('.onnx'):
+            raise ValueError(f"Only ONNX models are supported, got: {model_checkpoint}")
 
-    def download_model(self, model_name='yolov3'):
+        provider = get_best_provider()
+        self.model = ort.InferenceSession(model_checkpoint, providers=[provider])
+        self.input_name = self.model.get_inputs()[0].name
+        self.output_names = [o.name for o in self.model.get_outputs()]
+
+        preprocess = settings.ONNX_PREPROCESS.get(model_name, {})
+        self.model_expect_size = tuple(preprocess.get("input_size", (416, 416)))
+        self.mean = np.array(preprocess.get("mean", [0.0, 0.0, 0.0]), dtype=np.float32)
+        self.std = np.array(preprocess.get("std", [255.0, 255.0, 255.0]), dtype=np.float32)
+
+    def download_model(self, model_name='yolov3 (DO)'):
         ''' Downloads the model from zenodo and stores it in settings.MODELS_DIR '''
         # specify the url of the model which is to be downloaded
         down_url = settings.MODELS[model_name]["source"]
@@ -197,65 +173,45 @@ class OrganoiDL():
                 if self.cancel_requested:
                     print("Cancellation requested, stopping inference...")
                     return pred_bboxes, scores_list, labels_list  # Return what we have so far   
-                if self.model_type == 'onnx':
-                    img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
+                img_crop = test_img[:, :, i:(i+window_size), j:(j+window_size)]
 
-                    # Match MMDet's keep_ratio=True: fit crop within model_expect_size preserving aspect ratio
-                    _, _, crop_h, crop_w = img_crop.shape
-                    scale_factor = min(target_w / crop_w, target_h / crop_h)
-                    new_h, new_w = int(crop_h * scale_factor), int(crop_w * scale_factor)
-                    resize_factor_x = window_size / new_h
-                    resize_factor_y = window_size / new_w
+                # Fit crop within model_expect_size preserving aspect ratio.
+                _, _, crop_h, crop_w = img_crop.shape
+                scale_factor = min(target_w / crop_w, target_h / crop_h)
+                new_h, new_w = int(crop_h * scale_factor), int(crop_w * scale_factor)
+                resize_factor_x = window_size / new_h
+                resize_factor_y = window_size / new_w
 
-                    with profile_section('resize', profiling_stats):
-                        # Convert float [0,1] BCHW → uint8 HWC to match MMDet's cv2.INTER_LINEAR on uint8
-                        img_hwc_uint8 = (img_crop[0].cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
-                        img_resized = cv2.resize(img_hwc_uint8, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-                        img_crop = img_resized.transpose(2, 0, 1)[np.newaxis, :].astype(np.float32)  # HWC → BCHW [0,255]
+                with profile_section('resize', profiling_stats):
+                    img_hwc_uint8 = (img_crop[0].cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
+                    img_resized = cv2.resize(img_hwc_uint8, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                    img_crop = img_resized.transpose(2, 0, 1)[np.newaxis, :].astype(np.float32)
 
-                    # Apply model-specific normalization (img_crop already in [0,255])
-                    mean_bchw = self.mean.reshape(1, 3, 1, 1).astype(np.float32)
-                    std_bchw = self.std.reshape(1, 3, 1, 1).astype(np.float32)
-                    img_crop = (img_crop - mean_bchw) / std_bchw
-                    img_crop = img_crop.astype(np.float32)
+                mean_bchw = self.mean.reshape(1, 3, 1, 1)
+                std_bchw = self.std.reshape(1, 3, 1, 1)
+                img_crop = (img_crop - mean_bchw) / std_bchw
+                img_crop = img_crop.astype(np.float32)
 
-                    # Run inference
-                    outputs = self.model.run(self.output_names, {self.input_name: img_crop})
-                    dets, labels = outputs  # dets, labels
-                    dets = dets[0]
-                    labels = labels[0]
-                    if dets.shape[0] == 0:
-                        continue
-                    else:
-                        for bbox_id in range(dets.shape[0]):
-                            y1, x1, y2, x2, score = dets[bbox_id]
-                            x1 *= resize_factor_x
-                            x2 *= resize_factor_x
-                            y1 *= resize_factor_y
-                            y2 *= resize_factor_y
-                            x1_real = torch.div(x1 + i, rescale_factor, rounding_mode='floor')
-                            x2_real = torch.div(x2 + i, rescale_factor, rounding_mode='floor')
-                            y1_real = torch.div(y1 + j, rescale_factor, rounding_mode='floor')
-                            y2_real = torch.div(y2 + j, rescale_factor, rounding_mode='floor')
-                            pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
-                            scores_list.append(score)
-                            labels_list.append(labels[bbox_id])
-                else:
-                    # crop
-                    img_crop = test_img[i:(i+window_size), j:(j+window_size)]
-                    # get predictions
-                    output = self.model(img_crop, pred_score_thr=0.05)
-                    preds = output['predictions'][0]['bboxes']
-                    if len(preds) != 0:
-                        for bbox_id in range(len(preds)):
-                            y1, x1, y2, x2 = preds[bbox_id]
-                            x1_real = torch.div(x1 + i, rescale_factor, rounding_mode='floor')
-                            x2_real = torch.div(x2 + i, rescale_factor, rounding_mode='floor')
-                            y1_real = torch.div(y1 + j, rescale_factor, rounding_mode='floor')
-                            y2_real = torch.div(y2 + j, rescale_factor, rounding_mode='floor')
-                            pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
-                            scores_list.append(output['predictions'][0]['scores'][bbox_id])
-                            labels_list.append(output['predictions'][0]['labels'][bbox_id])
+                outputs = self.model.run(self.output_names, {self.input_name: img_crop})
+                dets, labels = outputs
+                dets = dets[0]
+                labels = labels[0]
+                if dets.shape[0] == 0:
+                    continue
+
+                for bbox_id in range(dets.shape[0]):
+                    y1, x1, y2, x2, score = dets[bbox_id]
+                    x1 *= resize_factor_x
+                    x2 *= resize_factor_x
+                    y1 *= resize_factor_y
+                    y2 *= resize_factor_y
+                    x1_real = torch.div(x1 + i, rescale_factor, rounding_mode='floor')
+                    x2_real = torch.div(x2 + i, rescale_factor, rounding_mode='floor')
+                    y1_real = torch.div(y1 + j, rescale_factor, rounding_mode='floor')
+                    y2_real = torch.div(y2 + j, rescale_factor, rounding_mode='floor')
+                    pred_bboxes.append(torch.Tensor([x1_real, y1_real, x2_real, y2_real]))
+                    scores_list.append(score)
+                    labels_list.append(labels[bbox_id])
 
         # Calculate and print profiling results
         total_time = time.perf_counter() - start_time
@@ -308,16 +264,12 @@ class OrganoiDL():
             window_size = round(window_size * rescale_factor)
             step = round(window_size * window_overlap)
             # prepare image for model - norm, tensor, etc.
-            if self.model_type=='onnx':
-                ready_img, prepadded_height, prepadded_width  = prepare_img_onnx(img,
-                                                                            step,
-                                                                            window_size,
-                                                                            rescale_factor)
-            else:
-                ready_img, prepadded_height, prepadded_width  = prepare_img(img,
-                                                                            step,
-                                                                            window_size,
-                                                                            rescale_factor)          
+            ready_img, prepadded_height, prepadded_width = prepare_img_onnx(
+                img,
+                step,
+                window_size,
+                rescale_factor,
+            )
             # and run sliding window over whole image
             bboxes, scores, labels = self.sliding_window(ready_img,
                                                  step,
