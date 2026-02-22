@@ -23,7 +23,7 @@ def get_reader(path):
     # otherwise we return the *function* that can read ``path``.
     return reader_function
 
-def reader_function(path: str) -> layers.Shapes:
+def reader_function_data_management(path: str) -> layers.Shapes:
     """ Reads the labels in the json file and adds a shapes layer to the napari viewer """
     # laod json
     f = open(path)
@@ -77,4 +77,11 @@ def reader_function(path: str) -> layers.Shapes:
                         'edge_width': 12
     }
     # return data, attributes for displaying and type of layer to add to viewer
-    return [(bboxes, layer_attributes, 'shapes')]
+    return [(bboxes, layer_attributes, 'shapes', lables)]
+
+
+def reader_function(path: str):
+    """ A wrapper around the reader function to manage errors and return None if the file cannot be read """
+    
+    bboxes, layer_attributes, layer_type, _ = reader_function_data_management(path)
+    return [(bboxes, layer_attributes, layer_type)]

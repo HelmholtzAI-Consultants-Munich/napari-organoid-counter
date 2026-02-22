@@ -423,7 +423,7 @@ class OrganoiDL():
             self.pred_scores[shapes_name] = new_scores
             self.pred_labels[shapes_name] = new_labels
             self.pred_ids[shapes_name] = new_ids
-            self.next_id[shapes_name] = len(new_ids)+1
+            self.next_id[shapes_name] = max(new_ids, default=0) + 1
 
         elif len(new_ids)==0: return
 
@@ -478,7 +478,9 @@ class OrganoiDL():
             self.next_id[shapes_name] = c
         else: 
             # Reset next_id to one higher than the current max ID (or 1 if no boxes remain)
-            self.next_id[shapes_name] = max(self.pred_ids[shapes_name], default=0) + 1
+            pred_ids = self.pred_ids.get(shapes_name, [])
+            self.pred_ids.setdefault(shapes_name, pred_ids)
+            self.next_id[shapes_name] = max(pred_ids, default=0) + 1
 
     def remove_shape_from_dict(self, shapes_name):
         """ Removes results of shapes_name from all result dicts. """

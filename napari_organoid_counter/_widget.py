@@ -19,7 +19,7 @@ from pathlib import Path
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QBrush, QColor, QFontMetrics
 from qtpy.QtWidgets import (
-    QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
+    QMessageBox, QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
     QSlider, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem
 )
@@ -130,7 +130,7 @@ class OrganoidCounterWidget(QWidget):
         self.stored_diameters = {}
 
         # Annotation Mode 
-        self.annotation_mode = 0 # Default to Detection Only mode (0)
+        self.annotation_mode = 2 # Default to Detection Only mode (0)
 
         # Mapping annotation modes to names and valid class sets
         self.annotation_mode_mapping = {
@@ -360,11 +360,14 @@ class OrganoidCounterWidget(QWidget):
         cur_seg_selected = cur_layer_list[-1]
         # switch to values of other shapes layer if clicked
         if type(cur_seg_selected)==layers.Shapes:
-            if self.cur_shapes_layer is not None:
+            if self.cur_shapes_layer is not None and self.cur_shapes_name:
                 self.stored_confidences[self.cur_shapes_name] = self.confidence_slider.value()/100
                 self.stored_diameters[self.cur_shapes_name] = self.min_diameter_slider.value()
             self.cur_shapes_layer = cur_seg_selected
             self.cur_shapes_name = cur_seg_selected.name
+            # Ensure defaults exist for newly created/loaded shape layers.
+            self.stored_diameters.setdefault(self.cur_shapes_name, self.min_diameter_slider.value())
+            self.stored_confidences.setdefault(self.cur_shapes_name, self.confidence_slider.value()/100)
             # update min diameter text and slider with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
             self.min_diameter_textbox.setText(str(self.min_diameter))
@@ -448,14 +451,20 @@ class OrganoidCounterWidget(QWidget):
         use_default_color = (self.annotation_mode == 0 or "(DO)" in self.model_name) and all_labels_unassigned
         edge_color = utils.get_edge_color(labels, use_default_color)
                     
+        existing_layer = None
+        if labels_layer_name in self.viewer.layers:
+            candidate_layer = self.viewer.layers[labels_layer_name]
+            if isinstance(candidate_layer, layers.Shapes):
+                existing_layer = candidate_layer
+
         # if layer already exists
-        if labels_layer_name in self.shape_layer_names: 
-            self.viewer.layers[labels_layer_name].data = bboxes # hack to get edge_width stay the same!
-            self.viewer.layers[labels_layer_name].properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
-            self.viewer.layers[labels_layer_name].edge_color = edge_color
-            self.viewer.layers[labels_layer_name].edge_width = 12
-            self.viewer.layers[labels_layer_name].refresh()
-            self.viewer.layers[labels_layer_name].refresh_text()
+        if existing_layer is not None:
+            existing_layer.data = bboxes  # hack to keep edge_width unchanged
+            existing_layer.properties = {'box_id': box_ids, 'scores': scores, 'labels': labels}
+            existing_layer.edge_color = edge_color
+            existing_layer.edge_width = 12
+            existing_layer.refresh()
+            existing_layer.refresh_text()
         # or if this is the first run
         else:
             # if no organoids were found just make an empty shapes layer
@@ -486,49 +495,6 @@ class OrganoidCounterWidget(QWidget):
         """ Is called whenever preprocess button is clicked """
         if not self.image_layer_name: show_info('Please load an image first and try again!')
         else: self._preprocess()
-
-    def _save_timing_info(self, elapsed_time):
-        """ Save elapsed time and run configuration to a JSON file """
-        # Get the absolute path of the current image
-        image_layer = self.viewer.layers[self.image_layer_name]
-        assert hasattr(image_layer, 'source') and hasattr(image_layer.source, 'path')
-        image_path = str(image_layer.source.path) if image_layer.source.path else "Unknown"
-        
-        # Create directory for timing logs next to the script
-        script_dir = Path(__file__).parent
-        timing_dir = script_dir / "timing_logs"
-        timing_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Format window sizes and downsampling for filename
-        window_str = "_".join(map(str, self.window_sizes))
-        downsample_str = "_".join(map(str, self.downsampling))
-        
-        # Create filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{self.image_layer_name}_ws{window_str}_ds{downsample_str}_{timestamp}.json"
-        filepath = timing_dir / filename
-        
-        # Determine annotation mode
-        annotation_mode = "Multi Annotation" if self.multi_annotation_mode else "Single Annotation"
-        
-        # Prepare data to save
-        timing_data = {
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "image_path": image_path,
-            "elapsed_time_seconds": round(elapsed_time, 2),
-            "elapsed_time_formatted": f"{int(elapsed_time // 60)}m {int(elapsed_time % 60)}s",
-            "window_sizes": self.window_sizes,
-            "downsampling": self.downsampling,
-            "window_overlap": self.window_overlap,
-            "model_name": self.model_name,
-            "annotation_mode": annotation_mode
-        }
-        
-        # Save to JSON file
-        utils.write_to_json(str(filepath), timing_data)
-        
-        # Show info to user
-        show_info(f"Run completed in {timing_data['elapsed_time_formatted']}. Timing saved to: {filename}")
 
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
@@ -767,6 +733,7 @@ class OrganoidCounterWidget(QWidget):
 
     def on_annotation_mode_changed(self, mode):
         """Callback for dropdown selection."""
+        print(f"Annotation mode changed to {mode} xdxd")
         self.annotation_mode = mode
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
@@ -805,7 +772,7 @@ class OrganoidCounterWidget(QWidget):
                 else:
                     # Check against all color mappings to find the actual class number
                     for class_num, (color_rgba, color_name) in settings.COLOR_MAPPING.items():
-                        if np.allclose(edge_color[:3], color_rgba[:3], rtol=1e-3, atol=1e-3):
+                        if np.allclose(edge_color[:3], color_rgba[:3], rtol=1e-3, atol=1e-3) and class_num in self.selected_classes:
                             labels.append(class_num)  # Assign actual class number
                             matched = True
                             break
@@ -967,6 +934,8 @@ class OrganoidCounterWidget(QWidget):
         for layer_name in added_items:
             layer = self.viewer.layers[layer_name]
             self._shape_name_by_id[id(layer)] = layer.name
+            self.stored_diameters.setdefault(layer_name, self.min_diameter_slider.value())
+            self.stored_confidences.setdefault(layer_name, self.confidence_slider.value()/100)
             # bind rename handler
             layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
 
@@ -1064,24 +1033,32 @@ class OrganoidCounterWidget(QWidget):
         if len(new_ids) > len(set(new_ids)):
             num_sim = len(new_ids) - len(set(new_ids))
             if num_sim > 1:  RuntimeWarning('At least one duplicate Box ID found.')
-            new_ids[-1] = self.organoiDL.next_id[self.cur_shapes_name]
+            existing_ids = [int(i) for i in new_ids[:-1]]
+            backend_ids = [int(i) for i in self.organoiDL.pred_ids.get(self.cur_shapes_name, [])]
+            next_unique_id = max(existing_ids + backend_ids, default=0) + 1
+            next_unique_id = max(next_unique_id, int(self.organoiDL.next_id.get(self.cur_shapes_name, 1)))
+            new_ids[-1] = next_unique_id
             new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
             new_scores[-1] = 1  # give new box score = 1
+            new_labels = self.viewer.layers[self.cur_shapes_name].properties.get(
+                'labels', [-1] * len(self.cur_shapes_layer.data)
+            )
     
             # set new properties to shapes layer
-            self.viewer.layers[self.cur_shapes_name].properties = {'box_id': new_ids, 'scores': new_scores}
+            self.viewer.layers[self.cur_shapes_name].properties = {
+                'box_id': new_ids,
+                'scores': new_scores,
+                'labels': new_labels,
+            }
             # refresh text displayed
             self.viewer.layers[self.cur_shapes_name].refresh()
             self.viewer.layers[self.cur_shapes_name].refresh_text()
 
-            labels_prop = self.viewer.layers[self.cur_shapes_name].properties.get(
-                'labels', [-1] * len(self.cur_shapes_layer.data)
-            )
             self.organoiDL.update_bboxes_scores(
                 self.cur_shapes_name,
                 self.cur_shapes_layer.data,
                 new_scores,
-                labels_prop,
+                new_labels,
                 new_ids,
             )
 
@@ -1290,6 +1267,8 @@ class OrganoidCounterWidget(QWidget):
         self.annotation_mode_dropdown = QComboBox()
         self.annotation_mode_dropdown.addItems(["Detection Only (DO)", "Binary Classification (BC)", "3 classes", "4 classes", "5 classes", "6 classes", "7 classes", "8 classes", "9 classes", "10 classes"])
         self.annotation_mode_dropdown.currentIndexChanged.connect(self.on_annotation_mode_changed)
+        # Set default selection based on current annotation mode
+        self.annotation_mode_dropdown.setCurrentIndex(self.annotation_mode)
         hbox.addWidget(self.annotation_mode_dropdown)
         
         return hbox
@@ -1540,7 +1519,17 @@ class OrganoidCounterWidget(QWidget):
         text_strings = []
         for i in range(len(colors)):
             if alpha_out[i] > 1e-3 and i < len(box_ids) and i < len(scores):
-                text_strings.append(f"ID: {int(box_ids[i])}\nConf.: {float(scores[i]):.2f}")
+                try:
+                    box_id_val = float(box_ids[i])
+                    score_val = float(scores[i])
+                except (TypeError, ValueError):
+                    text_strings.append("")
+                    continue
+
+                if np.isfinite(box_id_val) and np.isfinite(score_val):
+                    text_strings.append(f"ID: {int(box_id_val)}\nConf.: {score_val:.2f}")
+                else:
+                    text_strings.append("")
             else:
                 text_strings.append("")  # hide text
 
@@ -1713,6 +1702,10 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_tree_item_clicked(self, item: QTreeWidgetItem, column: int):
         """Handle click on a tree item - load the image if it's a file."""
+        # First, save current annotation
+        if not self._auto_save_current():
+            return  # Save failed, don't proceed
+
         img_path_str = item.data(0, Qt.UserRole)
         if img_path_str is None:
             # This is a folder, not a file
@@ -1731,6 +1724,7 @@ class OrganoidCounterWidget(QWidget):
             return True  # No image loaded, nothing to save
 
         if self.cur_shapes_layer is None or len(self.cur_shapes_layer.data) == 0:
+            
             return True  # No boxes to save
 
         # If this image has only a draft (no complete .json), save as draft so we
@@ -1747,6 +1741,7 @@ class OrganoidCounterWidget(QWidget):
         Save both JSON and CSV annotation files for the given image.
         Returns True on success, False on failure.
         """
+        show_info(f'Saving annotation for {img_path.name}...')
         if self.cur_shapes_layer is None:
             show_info('No shapes layer to save.')
             return False
@@ -1760,7 +1755,15 @@ class OrganoidCounterWidget(QWidget):
         labels, all_valid = self._assign_labels()
         if not all_valid:
             show_error("Some organoids have not been assigned a valid class. Please classify all organoids before saving.")
-            return False
+                # open a confirmation dialog to ask the user if they want to delete the existing annotation and suggest to save as a draft if they want to keep the existing annotation
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Warning)
+            msg_box.setWindowTitle("Invalid annotation")
+            msg_box.setText("Some organoids have not been assigned a valid class, the annotation will be saved as a draft. To save the annotation, please assign a valid class to all organoids.")
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            result = msg_box.exec_()
+
+            return self._save_incomplete_annotation_for_image(img_path)
 
         # Prepare file paths
         json_path = img_path.with_suffix('.json')
@@ -1793,6 +1796,7 @@ class OrganoidCounterWidget(QWidget):
         Save annotation as draft (incomplete): JSON only, no CSV, no requirement
         that all organoids have a valid class. Returns True on success.
         """
+        show_info(f'Saving draft annotation for {img_path.name}...')
         if self.cur_shapes_layer is None:
             show_info('No shapes layer to save.')
             return False
@@ -1827,8 +1831,6 @@ class OrganoidCounterWidget(QWidget):
 
     def _load_image_and_annotation(self, img_path: Path):
         """Load an image and its annotation (if exists) into napari."""
-        # Auto-save current annotation before loading new image
-        self._auto_save_current()
 
         # Clear existing layers related to the previous image
         layers_to_remove = []
@@ -1880,15 +1882,38 @@ class OrganoidCounterWidget(QWidget):
         draft_path = self._draft_json_path(img_path)
         annot_path = json_path if json_path.exists() else (draft_path if draft_path.exists() else None)
         if annot_path is not None:
-            from napari_organoid_counter._reader import reader_function
-            layer_data = reader_function(str(annot_path))
+            from napari_organoid_counter._reader import reader_function_data_management
+            layer_data = reader_function_data_management(str(annot_path))
             if layer_data:
-                for data, attrs, layer_type in layer_data:
+                for data, attrs, layer_type, labels in layer_data:
                     if layer_type == 'shapes':
-                        self.viewer.add_shapes(data, **attrs)
-
+                        loaded_layer = self.viewer.add_shapes(data, **attrs)
+                        self.cur_shapes_layer = loaded_layer
+                        # Ensure new boxes drawn on loaded annotations start as magenta.
+                        loaded_layer.current_edge_color = [1.0, 0.0, 1.0, 1.0]
+                        # update annotation mode based on number of classes in the annotation
+                        if len(labels) > 0:
+                            best_annotation_mode = self._suggest_annotation_mode(labels)
+                            if best_annotation_mode > self.annotation_mode:                                
+                                self.annotation_mode_dropdown.setCurrentIndex(best_annotation_mode)
+                                        
+                            
         # Refresh the tree to show updated status
         self._refresh_file_tree()
+
+    def _suggest_annotation_mode(self, labels: list[int]) -> int:
+        """
+        Suggest the best annotation mode based on the classes present in the loaded annotation.
+        """
+        num_classes = len(set(labels))
+        if num_classes == 1 and -1 in labels:
+            return 0  # Detection Only
+        elif num_classes <= 2:
+            return 1  # Binary Classification
+        elif 3 <= num_classes <= 10:
+            return num_classes - 1  # Corresponding to "3 classes" → index 2, etc.
+        else:
+            return self.annotation_mode  # No change if outside expected range
 
     def _on_save_annotation_clicked(self):
         """Handle Save Annotation button click."""
