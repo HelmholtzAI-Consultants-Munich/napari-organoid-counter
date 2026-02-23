@@ -24,8 +24,8 @@ setup(
     install_requires=[
         'napari[all]>=0.4.17,<0.5.0',
         'napari-aicsimageio>=0.7.2',
-        'torch<=2.5.1',
-        'torchvision<=0.20.1',
+        'torch',
+        'torchvision',
         'opencv-python',
         f'{onnxruntime_pkg}>=1.23.0',
     ],
