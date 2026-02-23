@@ -420,10 +420,29 @@ class OrganoidCounterWidget(QWidget):
 
     def _preprocess(self):
         """ Preprocess the current image in the viewer to improve visualisation for the user """
+        self._ensure_image_cached(self.image_layer_name)
+        if self.image_layer_name not in self.original_images:
+            show_warning(f"Could not preprocess image layer '{self.image_layer_name}'.")
+            return
+
         img = self.original_images[self.image_layer_name]
         img = utils.apply_normalization(img)
         self.viewer.layers[self.image_layer_name].data = img
         self.viewer.layers[self.image_layer_name].contrast_limits = (0,255)
+
+    def _ensure_image_cached(self, layer_name: str | None):
+        """Ensure the image cache has an entry for `layer_name`."""
+        if not layer_name or layer_name in self.original_images:
+            return
+        if layer_name not in self.viewer.layers:
+            return
+
+        layer = self.viewer.layers[layer_name]
+        if not isinstance(layer, layers.Image):
+            return
+
+        self.original_images[layer_name] = np.asarray(layer.data)
+        self.original_contrast[layer_name] = layer.contrast_limits
 
     def _update_num_organoids(self, len_bboxes):
         """ Updates the number of organoids displayed in the viewer """
@@ -721,8 +740,10 @@ class OrganoidCounterWidget(QWidget):
         self.confidence_slider.setValue(vis_confidence)
         if self.image_layer_name:
             # reset to original image
-            self.viewer.layers[self.image_layer_name].data = self.original_images[self.image_layer_name]
-            self.viewer.layers[self.image_layer_name].contrast_limits = self.original_contrast[self.image_layer_name]
+            self._ensure_image_cached(self.image_layer_name)
+            if self.image_layer_name in self.original_images:
+                self.viewer.layers[self.image_layer_name].data = self.original_images[self.image_layer_name]
+                self.viewer.layers[self.image_layer_name].contrast_limits = self.original_contrast[self.image_layer_name]
 
     def _on_screenshot_click(self):
         """ Is called whenever Take Screenshot button is clicked """
@@ -1752,6 +1773,11 @@ class OrganoidCounterWidget(QWidget):
         Returns True on success, False on failure.
         """
         show_info(f'Saving annotation for {img_path.name}...')
+        print(self.cur_shapes_layer)
+        print(type(self.cur_shapes_layer))
+        print(self.cur_shapes_layer.data)
+        print(self.cur_shapes_layer.properties)
+        print(self.cur_shapes_layer.name)
         if self.cur_shapes_layer is None:
             show_info('No shapes layer to save.')
             return False
@@ -1759,6 +1785,10 @@ class OrganoidCounterWidget(QWidget):
         bboxes = self.cur_shapes_layer.data
         if len(bboxes) == 0:
             show_info('No organoids to save.')
+            return False
+        # if label name and iamge name do not correspont 
+        if img_path.stem not in self.cur_shapes_layer.name:
+            show_error(f"Layer name '{self.cur_shapes_layer.name}' does not match image name '{img_path.stem}', please restart napari.")
             return False
 
         # Get labels from edge colors
@@ -1774,7 +1804,7 @@ class OrganoidCounterWidget(QWidget):
             result = msg_box.exec_()
 
             return self._save_incomplete_annotation_for_image(img_path)
-
+        
         # Prepare file paths
         json_path = img_path.with_suffix('.json')
         csv_path = img_path.with_suffix('.csv')
@@ -1814,6 +1844,10 @@ class OrganoidCounterWidget(QWidget):
         bboxes = self.cur_shapes_layer.data
         if len(bboxes) == 0:
             show_info('No organoids to save.')
+            return False
+        
+        if img_path.stem not in self.cur_shapes_layer.name:
+            show_error(f"Layer name '{self.cur_shapes_layer.name}' does not match image name '{img_path.stem}, please restart napari.'")
             return False
 
         # Allow unassigned classes (validate=False)
@@ -1886,6 +1920,7 @@ class OrganoidCounterWidget(QWidget):
                 del self.viewer.layers[layer_name]
                 self.viewer.add_image(gray_data, name=layer_name, scale=tuple(scale))
                 self.image_layer_name = layer_name
+            self._ensure_image_cached(self.image_layer_name)
             self._preprocess()
 
         # Check for existing annotation and load it (.json first, then .json.draft)
