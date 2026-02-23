@@ -512,11 +512,6 @@ class OrganoidCounterWidget(QWidget):
         self._apply_class_filter()
         self._refresh_class_counts()
 
-    def _on_preprocess_click(self):
-        """ Is called whenever preprocess button is clicked """
-        if not self.image_layer_name: show_info('Please load an image first and try again!')
-        else: self._preprocess()
-
     def _on_run_click(self):
         """ Is called whenever Run Organoid Counter button is clicked """
         # Reset cancellation flag
@@ -609,9 +604,7 @@ class OrganoidCounterWidget(QWidget):
         self._update_vis_bboxes(bboxes, scores, labels, box_ids, labels_layer_name)
         # and update cur_shapes_name to newly created shapes layer
         self.cur_shapes_name = labels_layer_name
-        # preprocess the image if not done so already to improve visualisation
-        self._preprocess() 
-
+        
     def _on_cancel_click(self):
         """ Is called when Cancel button is clicked """
         self.organoiDL.cancel_requested = True
@@ -1163,13 +1156,9 @@ class OrganoidCounterWidget(QWidget):
         self.image_layer_selection.setPlaceholderText('No image loaded')
         if self.image_layer_name:
             self.image_layer_selection.setText(self.image_layer_name)
-        # setup preprocess button to improve visualisation
-        preprocess_btn = QPushButton("Preprocess")
-        preprocess_btn.clicked.connect(self._on_preprocess_click)
         # and add all these to the layout
         hbox.addWidget(image_label, 2)
-        hbox.addWidget(self.image_layer_selection, 4)
-        hbox.addWidget(preprocess_btn, 4)
+        hbox.addWidget(self.image_layer_selection, 8)
         return hbox
 
     def _setup_model_box(self):
