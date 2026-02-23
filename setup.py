@@ -20,7 +20,7 @@ setup(
     license='MIT',
     description='A plugin to automatically count lung organoids using Deep Learning.',
     packages=find_packages(),
-    python_requires='>=3.9, <3.11',
+    python_requires='>=3.9',
     install_requires=[
         'napari[all]>=0.4.17,<0.5.0',
         'napari-aicsimageio>=0.7.2',
