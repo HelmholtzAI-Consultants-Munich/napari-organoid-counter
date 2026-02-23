@@ -2,6 +2,18 @@ from pathlib import Path
 
 
 def init():
+    global DEFAULT_WINDOW_SIZES
+    DEFAULT_WINDOW_SIZES = [1024]
+
+    global DEFAULT_DOWNSAMPLING
+    DEFAULT_DOWNSAMPLING = [2]
+
+    global USER_CONFIG_DIR
+    USER_CONFIG_DIR = Path.home() / ".config/napari-organoid-counter"
+
+    global GLOBAL_DEFAULTS_FILE
+    GLOBAL_DEFAULTS_FILE = USER_CONFIG_DIR / "preferences.json"
+
     global MODELS
     MODELS = {
         "faster r-cnn (DO)": {

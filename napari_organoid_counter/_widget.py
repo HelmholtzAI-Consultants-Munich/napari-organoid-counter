@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from pathlib import Path
 import torch
 from typing import List
@@ -106,13 +107,13 @@ class OrganoidCounterWidget(QWidget):
         # models to the model dict
         settings.init()
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         utils.add_local_models()
         self.model_id = 0
         self.model_name = list(settings.MODELS.keys())[self.model_id]
         
-        # init params 
-        self.window_sizes = window_sizes
-        self.downsampling = downsampling
+        # init params
+        self.window_sizes, self.downsampling = self._load_initial_window_defaults(window_sizes, downsampling)
         self.window_overlap = window_overlap
         self.min_diameter = min_diameter
         self.confidence = confidence
@@ -629,15 +630,139 @@ class OrganoidCounterWidget(QWidget):
 
     def _on_window_sizes_changed(self):
         """ Is called whenever user changes the window sizes text box """
-        new_window_sizes = self.window_sizes_textbox.text()
-        new_window_sizes = new_window_sizes.split(',')
-        self.window_sizes = [int(win_size.strip()) for win_size in new_window_sizes]
+        try:
+            self.window_sizes = self._parse_positive_int_list(
+                self.window_sizes_textbox.text(),
+                "Window sizes",
+            )
+            self._sync_window_settings_textboxes()
+        except ValueError as exc:
+            show_error(str(exc))
+            self._sync_window_settings_textboxes()
 
     def _on_downsampling_changed(self):
         """ Is called whenever user changes the downsampling text box """
-        new_downsampling = self.downsampling_textbox.text()
-        new_downsampling = new_downsampling.split(',')
-        self.downsampling = [int(ds.strip()) for ds in new_downsampling]
+        try:
+            self.downsampling = self._parse_positive_int_list(
+                self.downsampling_textbox.text(),
+                "Downsampling",
+            )
+            self._sync_window_settings_textboxes()
+        except ValueError as exc:
+            show_error(str(exc))
+            self._sync_window_settings_textboxes()
+
+    def _parse_positive_int_list(self, raw: str, field_name: str) -> list[int]:
+        values = [part.strip() for part in raw.split(',') if part.strip()]
+        if not values:
+            raise ValueError(f"{field_name} cannot be empty.")
+        try:
+            parsed = [int(value) for value in values]
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be comma-separated integers.") from exc
+        if any(value <= 0 for value in parsed):
+            raise ValueError(f"{field_name} must contain only positive integers.")
+        return parsed
+
+    def _validate_window_downsampling(self, window_sizes: list[int], downsampling: list[int]):
+        if len(window_sizes) != len(downsampling):
+            raise ValueError("Keep number of window sizes and downsampling the same and try again!")
+
+    def _sync_window_settings_textboxes(self):
+        if hasattr(self, "window_sizes_textbox"):
+            self.window_sizes_textbox.setText(",".join(str(value) for value in self.window_sizes))
+        if hasattr(self, "downsampling_textbox"):
+            self.downsampling_textbox.setText(",".join(str(value) for value in self.downsampling))
+
+    def _load_initial_window_defaults(self, window_sizes: List, downsampling: List):
+        """Load global defaults unless explicit non-default constructor values are provided."""
+        default_ws = list(settings.DEFAULT_WINDOW_SIZES)
+        default_ds = list(settings.DEFAULT_DOWNSAMPLING)
+        passed_ws = list(window_sizes)
+        passed_ds = list(downsampling)
+
+        # Keep explicit non-default constructor overrides.
+        if passed_ws != default_ws or passed_ds != default_ds:
+            return passed_ws, passed_ds
+
+        prefs = self._read_global_preferences()
+        if prefs is None:
+            return default_ws, default_ds
+
+        loaded_ws = prefs.get("window_sizes", default_ws)
+        loaded_ds = prefs.get("downsampling", default_ds)
+        try:
+            loaded_ws = [int(value) for value in loaded_ws]
+            loaded_ds = [int(value) for value in loaded_ds]
+            if any(value <= 0 for value in loaded_ws + loaded_ds):
+                raise ValueError
+            self._validate_window_downsampling(loaded_ws, loaded_ds)
+        except (TypeError, ValueError):
+            show_warning("Global defaults file is invalid. Using built-in defaults.")
+            return default_ws, default_ds
+
+        return loaded_ws, loaded_ds
+
+    def _read_global_preferences(self):
+        prefs_path = settings.GLOBAL_DEFAULTS_FILE
+        if not prefs_path.exists():
+            return None
+        try:
+            with prefs_path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if not isinstance(data, dict):
+                raise ValueError
+            return data
+        except (OSError, json.JSONDecodeError, ValueError):
+            show_warning("Could not read global defaults file. Using built-in defaults.")
+            return None
+
+    def _on_save_global_defaults_click(self):
+        """Persist window sizes/downsampling as global defaults."""
+        try:
+            window_sizes = self._parse_positive_int_list(
+                self.window_sizes_textbox.text(),
+                "Window sizes",
+            )
+            downsampling = self._parse_positive_int_list(
+                self.downsampling_textbox.text(),
+                "Downsampling",
+            )
+            self._validate_window_downsampling(window_sizes, downsampling)
+        except ValueError as exc:
+            show_error(str(exc))
+            return
+
+        prefs = {
+            "window_sizes": window_sizes,
+            "downsampling": downsampling,
+        }
+        try:
+            settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            with settings.GLOBAL_DEFAULTS_FILE.open("w", encoding="utf-8") as fh:
+                json.dump(prefs, fh, indent=2)
+        except OSError as exc:
+            show_error(f"Failed to save global defaults: {exc}")
+            return
+
+        self.window_sizes = window_sizes
+        self.downsampling = downsampling
+        self._sync_window_settings_textboxes()
+        show_info("Saved global defaults for window sizes and downsampling.")
+
+    def _on_reset_global_defaults_click(self):
+        """Reset global defaults to built-in values and update the current UI."""
+        try:
+            if settings.GLOBAL_DEFAULTS_FILE.exists():
+                settings.GLOBAL_DEFAULTS_FILE.unlink()
+        except OSError as exc:
+            show_error(f"Failed to reset global defaults: {exc}")
+            return
+
+        self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
+        self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
+        self._sync_window_settings_textboxes()
+        show_info("Reset global defaults to built-in values.")
 
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
@@ -1100,6 +1225,7 @@ class OrganoidCounterWidget(QWidget):
         model_box = self._setup_model_box()
         window_sizes_box = self._setup_window_sizes_box()
         downsampling_box = self._setup_downsampling_box()
+        global_defaults_box = self._setup_global_defaults_box()
         run_box = self._setup_run_box()
         annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single, multi-annotation or multi-class annotation
         self._setup_progress_box()
@@ -1111,6 +1237,7 @@ class OrganoidCounterWidget(QWidget):
         vbox.addLayout(model_box)
         vbox.addLayout(window_sizes_box)
         vbox.addLayout(downsampling_box)
+        vbox.addLayout(global_defaults_box)
         vbox.addLayout(run_box)
         vbox.addLayout(annotation_mode_box)  # Add the annotation dropdown
         vbox.addWidget(self.progress_box)
@@ -1580,6 +1707,21 @@ class OrganoidCounterWidget(QWidget):
         hbox.addStretch(1)
         #self.reset_box.setLayout(hbox)
         #self.reset_box.setStyleSheet("border: 0px")
+        return hbox
+
+    def _setup_global_defaults_box(self):
+        """Set up controls for persisting global defaults."""
+        hbox = QHBoxLayout()
+        self.save_defaults_btn = QPushButton("Set Parameters as Default")
+        self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
+        self.save_defaults_btn.setStyleSheet("border: 0px")
+        self.reset_defaults_btn = QPushButton("Reset parameters")
+        self.reset_defaults_btn.clicked.connect(self._on_reset_global_defaults_click)
+        self.reset_defaults_btn.setStyleSheet("border: 0px")
+        hbox.addStretch(1)
+        hbox.addWidget(self.save_defaults_btn)
+        hbox.addWidget(self.reset_defaults_btn)
+        hbox.addStretch(1)
         return hbox
 
     def _setup_data_browser_widget(self):
