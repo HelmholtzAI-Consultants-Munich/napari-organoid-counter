@@ -1557,6 +1557,11 @@ class OrganoidCounterWidget(QWidget):
             layout.removeWidget(self.legend_box)
             self.legend_box.deleteLater()
             self.legend_box = None
+        # Clear all legend widget references; old Qt objects may already be deleted.
+        self.class_count_labels = {}
+        self.class_checkboxes = {}
+        self.master_class_checkbox = None
+        self.visible_classes_filter = set(self.selected_classes)
 
         # Detection-Only → nothing further
         if self.annotation_mode == 0:
@@ -1572,7 +1577,8 @@ class OrganoidCounterWidget(QWidget):
 
     def _update_single_class_label(self, cls: int) -> None:
         """Update the legend row for one class with its current (visible) box-count."""
-        if cls not in self.class_count_labels:
+        label = self.class_count_labels.get(cls)
+        if label is None:
             return  # legend not built yet
 
         if self.cur_shapes_layer is None:
@@ -1589,7 +1595,7 @@ class OrganoidCounterWidget(QWidget):
                 count  = int(mask.sum())
 
         name = self.color_mapping[cls][1]
-        self.class_count_labels[cls].setText(f"Class {cls} ({name}): {count}")
+        label.setText(f"Class {cls} ({name}): {count}")
 
     def _refresh_class_counts(self) -> None:
         """Recompute every class row in the legend."""
@@ -1904,11 +1910,6 @@ class OrganoidCounterWidget(QWidget):
         Returns True on success, False on failure.
         """
         show_info(f'Saving annotation for {img_path.name}...')
-        print(self.cur_shapes_layer)
-        print(type(self.cur_shapes_layer))
-        print(self.cur_shapes_layer.data)
-        print(self.cur_shapes_layer.properties)
-        print(self.cur_shapes_layer.name)
         if self.cur_shapes_layer is None:
             show_info('No shapes layer to save.')
             return False
