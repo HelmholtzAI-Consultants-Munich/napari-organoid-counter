@@ -127,9 +127,9 @@ class OrganoiDL():
                     rescale_factor,
                     prepadded_height,
                     prepadded_width,
-                    pred_bboxes=[],
-                    scores_list=[], 
-                    labels_list=[]):
+                    pred_bboxes=None,
+                    scores_list=None, 
+                    labels_list=None):
         ''' Runs sliding window inference and returns predicting bounding boxes and confidence scores for each box.
         Inputs
         ----------
@@ -161,6 +161,14 @@ class OrganoiDL():
             The  resulting confidence scores of the model for the predicted boxes are appended here 
             Same as pred_bboxes, can be empty on first run but stores results of all runs.
         '''
+        # None defaults prevent mutable default argument sharing across calls (Python gotcha)
+        if pred_bboxes is None:
+            pred_bboxes = []
+        if scores_list is None:
+            scores_list = []
+        if labels_list is None:
+            labels_list = []    
+        
         # Profiling variables
         start_time = time.perf_counter()
         profiling_stats = {}

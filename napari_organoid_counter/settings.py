@@ -35,7 +35,7 @@ def init():
     global ONNX_PREPROCESS
     ONNX_PREPROCESS = {
         "faster r-cnn (DO)": {
-            "input_size": (800, 1333),
+            "input_size": (800, 1333), # Original is (1333, 800); do we swap due to napari's (y,x) convention?
             "mean": [123.675, 116.28, 103.53],
             "std": [58.395, 57.12, 57.375],
         },

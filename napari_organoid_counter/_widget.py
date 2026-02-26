@@ -22,7 +22,7 @@ from qtpy.QtGui import QBrush, QColor, QFontMetrics
 from qtpy.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
-    QSlider, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem
+    QSlider, QSpinBox, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem
 )
 
 from napari_organoid_counter._orgacount import OrganoiDL
@@ -218,9 +218,9 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.inserted.connect(self._added_layer)
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
+        self._disable_native_open_shortcut()
     
-        # setup flags used for changing slider and text of min diameter and confidence threshold
-        self.diameter_slider_changed = False 
+        # setup flag used for changing slider and text of confidence threshold
         self.confidence_slider_changed = False
 
         # Key binding to reset the edge_color of selected bounding boxes to the original magenta color
@@ -365,15 +365,15 @@ class OrganoidCounterWidget(QWidget):
         if type(cur_seg_selected)==layers.Shapes:
             if self.cur_shapes_layer is not None and self.cur_shapes_name:
                 self.stored_confidences[self.cur_shapes_name] = self.confidence_slider.value()/100
-                self.stored_diameters[self.cur_shapes_name] = self.min_diameter_slider.value()
+                self.stored_diameters[self.cur_shapes_name] = self.min_diameter_spinbox.value()
             self.cur_shapes_layer = cur_seg_selected
             self.cur_shapes_name = cur_seg_selected.name
             # Ensure defaults exist for newly created/loaded shape layers.
-            self.stored_diameters.setdefault(self.cur_shapes_name, self.min_diameter_slider.value())
+            self.stored_diameters.setdefault(self.cur_shapes_name, self.min_diameter_spinbox.value())
             self.stored_confidences.setdefault(self.cur_shapes_name, self.confidence_slider.value()/100)
             # update min diameter text and slider with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
-            self.min_diameter_textbox.setText(str(self.min_diameter))
+            self.min_diameter_spinbox.setValue(self.min_diameter)
             # update confidence text and slider with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
             self.confidence_textbox.setText(str(self.confidence))
@@ -555,7 +555,7 @@ class OrganoidCounterWidget(QWidget):
             return
         
         # get the current image 
-        img_data = self.viewer.layers[self.image_layer_name].data
+        img_data = self.original_images.get(self.image_layer_name, self.viewer.layers[self.image_layer_name].data)
         
         # check that image is grayscale
         if len(utils.squeeze_img(img_data).shape) > 2:
@@ -578,7 +578,7 @@ class OrganoidCounterWidget(QWidget):
                            self.downsampling,
                            self.window_overlap)
         
-        raw_total = self.organoiDL.pred_bboxes[labels_layer_name].size(0)
+        # raw_total = self.organoiDL.pred_bboxes[labels_layer_name].size(0) # never used
         if self.organoiDL.cancel_requested:
             self.cancel_btn.setEnabled(False)
             self.viewer.window._status_bar._toggle_activity_dock(False)
@@ -621,8 +621,9 @@ class OrganoidCounterWidget(QWidget):
         # called when the user hits the 'browse' button to select a model
         fd = QFileDialog()
         fd.setFileMode(QFileDialog.AnyFile)
-        if fd.exec_():
-            model_path = fd.selectedFiles()[0]
+        if not fd.exec_():
+            return
+        model_path = fd.selectedFiles()[0]
         import shutil
         shutil.copy2(model_path, settings.MODELS_DIR)
         model_name = utils.add_to_dict(model_path)
@@ -800,26 +801,11 @@ class OrganoidCounterWidget(QWidget):
             self._refresh_class_counts()
             self.organoiDL.update_next_id(self.cur_shapes_name)   # keep counter monotonic
 
-    def _on_diameter_slider_changed(self):
-        """ Is called whenever user changes the Minimum Diameter slider """
-        # get current value
-        self.min_diameter = self.min_diameter_slider.value()
-        self.diameter_slider_changed = True
-        if int(self.min_diameter_textbox.text())!= self.min_diameter:
-            self.min_diameter_textbox.setText(str(self.min_diameter))
-        self.diameter_slider_changed = False
-        # check if no labels loaded yet
-        if len(self.shape_layer_names)==0: return
-        self._rerun() 
-    
-    def _on_diameter_textbox_changed(self):
-        """ Is called whenever user changes the minimum diameter from the textbox """
-        # check if no labels loaded yet
-        if self.diameter_slider_changed: return
-        self.min_diameter = int(self.min_diameter_textbox.text())
-        if self.min_diameter_slider.value() != self.min_diameter:
-            self.min_diameter_slider.setValue(self.min_diameter)
-        if len(self.shape_layer_names)==0: return
+    def _on_diameter_changed(self, value: int):
+        """ Is called whenever the minimum diameter spin box value changes """
+        self.min_diameter = value
+        if len(self.shape_layer_names) == 0:
+            return
         self._rerun()
 
     def _on_confidence_slider_changed(self):
@@ -854,7 +840,7 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter = 30
         self.confidence = 0.8
         vis_confidence = int(self.confidence*100)
-        self.min_diameter_slider.setValue(self.min_diameter)
+        self.min_diameter_spinbox.setValue(self.min_diameter)
         self.confidence_slider.setValue(vis_confidence)
         if self.image_layer_name:
             # reset to original image
@@ -989,8 +975,9 @@ class OrganoidCounterWidget(QWidget):
         Set the latest added image to the current working image (self.image_layer_name)
         """
         for layer_name in added_items:
-            self.original_images[layer_name] = self.viewer.layers[layer_name].data
-            self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
+            if layer_name not in self.original_images:
+                self.original_images[layer_name] = self.viewer.layers[layer_name].data
+                self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
         self._update_image_name_display()
 
@@ -1076,7 +1063,7 @@ class OrganoidCounterWidget(QWidget):
         for layer_name in added_items:
             layer = self.viewer.layers[layer_name]
             self._shape_name_by_id[id(layer)] = layer.name
-            self.stored_diameters.setdefault(layer_name, self.min_diameter_slider.value())
+            self.stored_diameters.setdefault(layer_name, self.min_diameter_spinbox.value())
             self.stored_confidences.setdefault(layer_name, self.confidence_slider.value()/100)
             # bind rename handler
             layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
@@ -1158,6 +1145,10 @@ class OrganoidCounterWidget(QWidget):
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
             return 
+
+        # Guard: set scale if not yet initialized
+        if self.organoiDL.img_scale[0] == 0 and self.cur_shapes_layer is not None:
+            self.organoiDL.set_scale(self.cur_shapes_layer.scale)
 
         # GUARD: ensure backend dicts exist under the current layer name
         if self.cur_shapes_name not in self.organoiDL.pred_bboxes:
@@ -1435,24 +1426,16 @@ class OrganoidCounterWidget(QWidget):
         Sets up the GUI part where the minimum diameter parameter is displayed
         """
         hbox = QHBoxLayout()
-        # setup the min diameter slider
-        self.min_diameter_slider = QSlider(Qt.Horizontal)
-        self.min_diameter_slider.setMinimum(10)
-        self.min_diameter_slider.setMaximum(100)
-        self.min_diameter_slider.setSingleStep(10)
-        self.min_diameter_slider.setValue(self.min_diameter)
-        self.min_diameter_slider.valueChanged.connect(self._on_diameter_slider_changed)
-        # setup the label
         min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
         min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # setup text box
-        self.min_diameter_textbox = QLineEdit(self)
-        self.min_diameter_textbox.setText(str(self.min_diameter))
-        self.min_diameter_textbox.returnPressed.connect(self._on_diameter_textbox_changed)  
-        # and add all these to the layout
+        self.min_diameter_spinbox = QSpinBox(self)
+        self.min_diameter_spinbox.setMinimum(0)
+        self.min_diameter_spinbox.setMaximum(10000)
+        self.min_diameter_spinbox.setSingleStep(10)
+        self.min_diameter_spinbox.setValue(self.min_diameter)
+        self.min_diameter_spinbox.valueChanged.connect(self._on_diameter_changed)
         hbox.addWidget(min_diameter_label, 4)
-        hbox.addWidget(self.min_diameter_textbox, 1)
-        hbox.addWidget(self.min_diameter_slider, 5)
+        hbox.addWidget(self.min_diameter_spinbox, 6)
         return hbox
 
     def _setup_confidence_box(self):
@@ -2150,7 +2133,23 @@ class OrganoidCounterWidget(QWidget):
         layer_names = [layer.name for layer in self.viewer.layers if type(layer) == layer_type]
         if layer_names: return [] + layer_names
         else: return []
-
+    
+    def _disable_native_open_shortcut(self):
+        """Clear napari's default Ctrl+O / Cmd+O shortcut to prevent conflict with the Data Browser."""
+        try:
+            from qtpy.QtGui import QKeySequence
+            menubar = self.viewer.window._qt_window.menuBar()
+            for action in menubar.actions():
+                menu = action.menu()
+                if menu is None:
+                    continue
+                if 'file' in action.text().lower():
+                    for sub_action in menu.actions():
+                        if 'open' in sub_action.text().lower() and not sub_action.isSeparator():
+                            sub_action.setShortcut(QKeySequence())
+                            return
+        except Exception:
+            pass
 
 class ConfirmUpload(QDialog):
     '''

@@ -33,6 +33,7 @@ def reader_function_data_management(path: str) -> layers.Shapes:
     ids = []
     scores = []
     lables = []
+    # scale = (1.0, 1.0)  # default
     # for each box
     for key in annot.keys():
         # read coordinates
@@ -82,6 +83,6 @@ def reader_function_data_management(path: str) -> layers.Shapes:
 
 def reader_function(path: str):
     """ A wrapper around the reader function to manage errors and return None if the file cannot be read """
-    
-    bboxes, layer_attributes, layer_type, _ = reader_function_data_management(path)
+    result = reader_function_data_management(path)
+    bboxes, layer_attributes, layer_type, _ = result[0]
     return [(bboxes, layer_attributes, layer_type)]
