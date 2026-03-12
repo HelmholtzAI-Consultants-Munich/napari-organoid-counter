@@ -89,7 +89,7 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
 
 def write_to_csv(name, data):
     """ Write data to a csv file. Here data is a list of lists, where each item represents a row in the csv file. """
-    df = pd.DataFrame(data, columns=['OrganoidID', 'D1[um]', 'D2[um]', 'Area[um^2]', 'Label'])
+    df = pd.DataFrame(data, columns=['OrganoidID', 'D1[μm]', 'D2[μm]', 'Area[μm^2]', 'Label'])
     df.to_csv(name, index=False, sep=';')
 
 def get_bbox_diameters(bboxes, bbox_ids, scales, labels):
@@ -263,3 +263,91 @@ def get_edge_color(labels, use_default_color: bool):
             else:
                 edge_color.append(settings.COLOR_MAPPING[int(label)][0])  # Set edge color based on the predicted label
     return edge_color
+
+def _scale_to_um(value: float, unit: str) -> float:
+    """Convert a value in the given unit to µm."""
+    unit = unit.strip().replace('\u03bc', 'u').replace('\u00b5', 'u').lower()
+    factors = {
+        'um': 1.0, 'micrometer': 1.0, 'micron': 1.0,
+        'nm': 1e-3, 'nanometer': 1e-3,
+        'mm': 1e3,  'millimeter': 1e3,
+        'cm': 1e4,  'centimeter': 1e4,
+        'm':  1e6,  'meter': 1e6,
+        'in': 25400.0, 'inch': 25400.0,
+    }
+    return value * factors.get(unit, 1.0)
+
+def read_tiff_scale_um(path: str) -> tuple[float, float] | None:
+    """
+    Read physical pixel size in µm/pixel from a TIFF file.
+
+    Tries three metadata sources in priority order:
+      1. OME-XML  (PhysicalSizeX/Y + PhysicalSizeXUnit/YUnit)
+      2. ImageJ   (XResolution/YResolution tags + imagej_metadata['unit'])
+      3. Plain TIFF resolution tags (XResolution/YResolution + ResolutionUnit)
+
+    Returns (scale_y, scale_x) in µm/pixel in napari row-major (y, x) order,
+    or None if no usable metadata is found.
+    """
+    try:
+        import tifffile
+        import xml.etree.ElementTree as ET
+
+        with tifffile.TiffFile(path) as tif:
+
+            # 1. OME-XML: most explicit, always stores unit alongside value
+            if tif.ome_metadata:
+                try:
+                    root = ET.fromstring(tif.ome_metadata)
+                    ns = root.tag.split('}')[0].strip('{')
+                    for pixels in root.iter(f'{{{ns}}}Pixels'):
+                        sx = pixels.get('PhysicalSizeX')
+                        sy = pixels.get('PhysicalSizeY')
+                        if sx and sy:
+                            ux = pixels.get('PhysicalSizeXUnit', 'um')
+                            uy = pixels.get('PhysicalSizeYUnit', 'um')
+                            scale_x = _scale_to_um(float(sx), ux)
+                            scale_y = _scale_to_um(float(sy), uy)
+                            if scale_x > 0 and scale_y > 0:
+                                return (scale_y, scale_x)
+                except Exception:
+                    pass
+
+            # 2. ImageJ: sets ResolutionUnit=1 (no absolute unit) and stores
+            #    the real unit string separately in imagej_metadata['unit']
+            if tif.imagej_metadata:
+                ij_unit = tif.imagej_metadata.get('unit', '')
+                if ij_unit:
+                    page = tif.pages[0]
+                    tags = page.tags
+                    if 'XResolution' in tags and 'YResolution' in tags:
+                        xres = tags['XResolution'].value
+                        yres = tags['YResolution'].value
+                        xres_val = xres[0] / xres[1] if isinstance(xres, tuple) else float(xres)
+                        yres_val = yres[0] / yres[1] if isinstance(yres, tuple) else float(yres)
+                        if xres_val > 0 and yres_val > 0:
+                            scale_x = _scale_to_um(1.0 / xres_val, ij_unit)
+                            scale_y = _scale_to_um(1.0 / yres_val, ij_unit)
+                            if scale_x > 0 and scale_y > 0:
+                                return (scale_y, scale_x)
+
+            # 3. Plain TIFF resolution tags with ResolutionUnit (2=inch, 3=cm)
+            page = tif.pages[0]
+            tags = page.tags
+            if 'XResolution' in tags and 'YResolution' in tags and 'ResolutionUnit' in tags:
+                xres = tags['XResolution'].value
+                yres = tags['YResolution'].value
+                res_unit = tags['ResolutionUnit'].value
+                xres_val = xres[0] / xres[1] if isinstance(xres, tuple) else float(xres)
+                yres_val = yres[0] / yres[1] if isinstance(yres, tuple) else float(yres)
+                unit_str = {2: 'in', 3: 'cm'}.get(res_unit, '')
+                if xres_val > 0 and yres_val > 0 and unit_str:
+                    scale_x = _scale_to_um(1.0 / xres_val, unit_str)
+                    scale_y = _scale_to_um(1.0 / yres_val, unit_str)
+                    if scale_x > 0 and scale_y > 0:
+                        return (scale_y, scale_x)
+
+    except Exception:
+        pass
+
+    return None

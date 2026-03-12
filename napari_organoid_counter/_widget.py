@@ -184,9 +184,9 @@ class OrganoidCounterWidget(QWidget):
         # Create a container widget for all content
         container = QWidget()
         container_layout = QVBoxLayout(container)
+        container_layout.addWidget(self._setup_data_browser_widget())
         container_layout.addWidget(self._setup_input_widget())
         container_layout.addWidget(self._setup_output_widget())
-        container_layout.addWidget(self._setup_data_browser_widget())
         container_layout.addStretch(1)  # Push everything to top
 
         # Wrap in scroll area
@@ -219,6 +219,7 @@ class OrganoidCounterWidget(QWidget):
         self.viewer.layers.events.removed.connect(self._removed_layer)
         self.viewer.layers.selection.events.changed.connect(self._sel_layer_changed)
         self._disable_native_open_shortcut()
+        self._connect_file_menu_guard()
     
         # setup flag used for changing slider and text of confidence threshold
         self.confidence_slider_changed = False
@@ -243,6 +244,20 @@ class OrganoidCounterWidget(QWidget):
         # Activate key bindings for class-color shortcuts
         self.update_key_bindings()
         self._setup_mouse_callback()
+
+    def _connect_file_menu_guard(self):
+        """Keep the native open action disabled even if napari re-enables it."""
+        try:
+            menubar = self.viewer.window._qt_window.menuBar()
+            for action in menubar.actions():
+                menu = action.menu()
+                if menu is None:
+                    continue
+                if 'file' in action.text().lower():
+                    menu.aboutToShow.connect(self._disable_native_open_shortcut)
+                    return
+        except Exception:
+            pass
 
     def update_key_bindings(self):
         """ Update key bindings based on selected classes """            
@@ -547,7 +562,7 @@ class OrganoidCounterWidget(QWidget):
         
         # load model checkpoint
         self.organoiDL.set_model(self.model_name)
-        if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
+        # if self.organoiDL.img_scale[0]==0: self.organoiDL.set_scale(self.viewer.layers[self.image_layer_name].scale)
         
         # make sure the number of windows and downsamplings are the same
         if len(self.window_sizes) != len(self.downsampling): 
@@ -980,6 +995,8 @@ class OrganoidCounterWidget(QWidget):
                 self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
         self._update_image_name_display()
+        layer = self.viewer.layers[self.image_layer_name]
+        self.organoiDL.set_scale(tuple(layer.scale[-2:]))
 
     def _update_removed_image(self, removed_layers):
         """
@@ -1426,7 +1443,7 @@ class OrganoidCounterWidget(QWidget):
         Sets up the GUI part where the minimum diameter parameter is displayed
         """
         hbox = QHBoxLayout()
-        min_diameter_label = QLabel('Minimum Diameter [um]: ', self)
+        min_diameter_label = QLabel('Minimum Diameter [μm]: ', self)
         min_diameter_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         self.min_diameter_spinbox = QSpinBox(self)
         self.min_diameter_spinbox.setMinimum(0)
@@ -1874,9 +1891,13 @@ class OrganoidCounterWidget(QWidget):
         if self.current_image_path is None:
             return True  # No image loaded, nothing to save
 
-        if self.cur_shapes_layer is None or len(self.cur_shapes_layer.data) == 0:
-            
-            return True  # No boxes to save
+        if (
+            self.cur_shapes_layer is None
+            or len(self.cur_shapes_layer.data) == 0
+            or self.cur_shapes_name not in self.viewer.layers
+            or self.viewer.layers[self.cur_shapes_name] is not self.cur_shapes_layer
+        ):
+            return True  # No boxes to save, or layer reference is stale
 
         # If this image has only a draft (no complete .json), save as draft so we
         # do not promote to complete when the user simply switches images.
@@ -1902,7 +1923,7 @@ class OrganoidCounterWidget(QWidget):
             show_info('No organoids to save.')
             return False
         # if label name and iamge name do not correspont 
-        if img_path.stem not in self.cur_shapes_layer.name:
+        if self.cur_shapes_layer.name != 'Labels-' + img_path.stem:
             show_error(f"Layer name '{self.cur_shapes_layer.name}' does not match image name '{img_path.stem}', please restart napari.")
             return False
 
@@ -1928,7 +1949,11 @@ class OrganoidCounterWidget(QWidget):
         properties = self.cur_shapes_layer.properties
         box_ids = properties.get('box_id', list(range(len(bboxes))))
         scores = properties.get('scores', [1.0] * len(bboxes))
-        scale = self.cur_shapes_layer.scale
+        scale = (
+            self.viewer.layers[self.image_layer_name].scale
+            if self.image_layer_name and self.image_layer_name in self.viewer.layers
+            else self.cur_shapes_layer.scale
+        )
 
         # Save JSON (boxes)
         data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
@@ -1961,8 +1986,8 @@ class OrganoidCounterWidget(QWidget):
             show_info('No organoids to save.')
             return False
         
-        if img_path.stem not in self.cur_shapes_layer.name:
-            show_error(f"Layer name '{self.cur_shapes_layer.name}' does not match image name '{img_path.stem}, please restart napari.'")
+        if self.cur_shapes_layer.name != 'Labels-' + img_path.stem:
+            show_error(f"Layer name '{self.cur_shapes_layer.name}' does not match image name '{img_path.stem}', please restart napari.")
             return False
 
         # Allow unassigned classes (validate=False)
@@ -1972,7 +1997,11 @@ class OrganoidCounterWidget(QWidget):
         properties = self.cur_shapes_layer.properties
         box_ids = properties.get('box_id', list(range(len(bboxes))))
         scores = properties.get('scores', [1.0] * len(bboxes))
-        scale = self.cur_shapes_layer.scale
+        scale = (
+            self.viewer.layers[self.image_layer_name].scale
+            if self.image_layer_name and self.image_layer_name in self.viewer.layers
+            else self.cur_shapes_layer.scale
+        )
 
         data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
         utils.write_to_json(str(draft_path), data_json)
@@ -1988,8 +2017,32 @@ class OrganoidCounterWidget(QWidget):
         show_info(f'Saved draft annotation to {draft_path.name}')
         return True
 
+    def _resolve_image_scale(self, img_path: Path) -> tuple[float, float]:
+        """Return the authoritative (scale_y, scale_x) µm/px for the loaded image layer.
+
+        Prefers the scale already set by napari's reader. Falls back to TIFF
+        metadata when the reader reported the default (1.0, 1.0).
+        """
+        layer_scale = tuple(self.viewer.layers[self.image_layer_name].scale[-2:])
+        if layer_scale == (1.0, 1.0) and img_path.suffix.lower() in {'.tif', '.tiff'}:
+            tiff_scale = utils.read_tiff_scale_um(str(img_path))
+            if tiff_scale is not None:
+                return tiff_scale
+        return layer_scale
+
+    @staticmethod
+    def _scales_equal(s1, s2, tol: float = 1e-6) -> bool:
+        """Return True if two (y, x) scale tuples are equal within tolerance."""
+        return len(s1) == len(s2) and all(abs(a - b) < tol for a, b in zip(s1, s2))
+
     def _load_image_and_annotation(self, img_path: Path):
         """Load an image and its annotation (if exists) into napari."""
+
+        # Reset shapes state before clearing layers so no stale reference can persist.
+        self.cur_shapes_layer = None
+        self.cur_shapes_name = ''
+        self.save_layer_name = ''
+        self._update_num_organoids(0)
 
         # Clear existing layers related to the previous image
         layers_to_remove = []
@@ -2010,6 +2063,7 @@ class OrganoidCounterWidget(QWidget):
             self.viewer.open(str(img_path))
         self.current_image_path = img_path
 
+        image_scale = (1.0, 1.0)  # safe default if no image layer is found
         # Update the image layer name in the widget and convert RGB to grayscale if needed
         new_image_names = self._get_layer_names()
         if new_image_names:
@@ -2038,6 +2092,20 @@ class OrganoidCounterWidget(QWidget):
             self._ensure_image_cached(self.image_layer_name)
             self._preprocess()
 
+            # # Use scale already set by napari's reader if it is non-trivial,
+            # # otherwise fall back to parsing TIFF metadata directly.
+            # layer_scale = tuple(self.viewer.layers[self.image_layer_name].scale[-2:])
+            # if layer_scale == (1.0, 1.0) and img_path.suffix.lower() in {'.tif', '.tiff'}:
+            #     tiff_scale = utils.read_tiff_scale_um(str(img_path))
+            #     if tiff_scale is not None:
+            #         self.viewer.layers[self.image_layer_name].scale = tiff_scale
+            #         layer_scale = tiff_scale
+            # self.organoiDL.set_scale(layer_scale)
+
+            image_scale = self._resolve_image_scale(img_path)
+            self.viewer.layers[self.image_layer_name].scale = image_scale
+            self.organoiDL.set_scale(image_scale)
+
         # Check for existing annotation and load it (.json first, then .json.draft)
         json_path = img_path.with_suffix('.json')
         draft_path = self._draft_json_path(img_path)
@@ -2048,14 +2116,39 @@ class OrganoidCounterWidget(QWidget):
             if layer_data:
                 for data, attrs, layer_type, labels in layer_data:
                     if layer_type == 'shapes':
+                        saved_scale = tuple(attrs.get('scale', (1.0, 1.0)))
+
+                        # Always apply the authoritative image scale on load.
+                        attrs['scale'] = image_scale
                         loaded_layer = self.viewer.add_shapes(data, **attrs)
                         self.cur_shapes_layer = loaded_layer
-                        # Ensure new boxes drawn on loaded annotations start as magenta.
                         loaded_layer.current_edge_color = [1.0, 0.0, 1.0, 1.0]
-                        # update annotation mode based on number of classes in the annotation
+
+                        # Warn user if the saved scale differs from the image scale.
+                        if not self._scales_equal(saved_scale, image_scale):
+                            msg = QMessageBox(self)
+                            msg.setIcon(QMessageBox.Warning)
+                            msg.setWindowTitle("Scale Mismatch Detected")
+                            msg.setText(
+                                f"The annotation was saved with scale:\n"
+                                f"  (y={saved_scale[0]:.4f}, x={saved_scale[1]:.4f}) µm/px\n\n"
+                                f"The current image scale is:\n"
+                                f"  (y={image_scale[0]:.4f}, x={image_scale[1]:.4f}) µm/px\n\n"
+                                f"Use the image scale for correct physical measurements, or keep "
+                                f"the saved scale to stay consistent with an existing dataset."
+                            )
+                            use_image_btn = msg.addButton("Use Image Scale", QMessageBox.AcceptRole)
+                            msg.addButton("Keep Saved Scale", QMessageBox.RejectRole)
+                            msg.exec_()
+                            if msg.clickedButton() is not use_image_btn:
+                                # Sync image layer to saved scale so boxes and image align in world space.
+                                self.viewer.layers[self.image_layer_name].scale = saved_scale
+                                loaded_layer.scale = saved_scale
+                                self.organoiDL.set_scale(saved_scale)
+
                         if len(labels) > 0:
                             best_annotation_mode = self._suggest_annotation_mode(labels)
-                            if best_annotation_mode > self.annotation_mode:                                
+                            if best_annotation_mode > self.annotation_mode:
                                 self.annotation_mode_dropdown.setCurrentIndex(best_annotation_mode)
                                         
                             
@@ -2147,6 +2240,7 @@ class OrganoidCounterWidget(QWidget):
                     for sub_action in menu.actions():
                         if 'open' in sub_action.text().lower() and not sub_action.isSeparator():
                             sub_action.setShortcut(QKeySequence())
+                            sub_action.setEnabled(False)
                             return
         except Exception:
             pass
