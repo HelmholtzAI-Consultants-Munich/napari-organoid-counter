@@ -18,11 +18,12 @@ import numpy as np
 from pathlib import Path
 
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QBrush, QColor, QFontMetrics
+from qtpy.QtGui import QBrush, QColor, QFontMetrics, QCursor
 from qtpy.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
-    QSlider, QSpinBox, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem
+    QSlider, QSpinBox, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem,
+    QToolButton, QToolTip
 )
 
 from napari_organoid_counter._orgacount import OrganoiDL
@@ -33,23 +34,59 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-class _ExpandableImageNameEdit(QLineEdit):
-    """Read-only line edit that expands to show full text when clicked/focused."""
+# class _ExpandableImageNameEdit(QLineEdit):
+#     """Read-only line edit that expands to show full text when clicked/focused."""
 
-    def __init__(self, parent=None):
+#     def __init__(self, parent=None):
+#         super().__init__(parent)
+#         self._collapsed_min_width = 80
+
+#     def focusInEvent(self, event):
+#         super().focusInEvent(event)
+#         text = self.text() or self.placeholderText()
+#         if text:
+#             width = QFontMetrics(self.font()).horizontalAdvance(text) + 24
+#             self.setMinimumWidth(max(self._collapsed_min_width, width))
+
+#     def focusOutEvent(self, event):
+#         self.setMinimumWidth(self._collapsed_min_width)
+#         super().focusOutEvent(event)
+
+
+class _HelpButton(QToolButton):
+    """A small circular '?' button that shows its tooltip immediately on hover,
+    with styling that is visible on napari's dark background."""
+
+    def __init__(self, tooltip_text: str, parent=None):
         super().__init__(parent)
-        self._collapsed_min_width = 80
+        self.setText("?")
+        self.setFixedSize(18, 18)
+        self.setToolTip(tooltip_text)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setCursor(Qt.WhatsThisCursor)
+        self.setStyleSheet(
+            "QToolButton {"
+            "  border: 1px solid rgba(160, 160, 160, 180);"
+            "  border-radius: 9px;"
+            "  font-weight: bold;"
+            "  font-size: 11px;"
+            "  color: rgba(230, 230, 230, 255);"
+            "  background: rgba(70, 70, 75, 220);"
+            "  padding: 0px;"
+            "}"
+            "QToolButton:hover {"
+            "  background: rgba(110, 110, 120, 240);"
+            "  border: 1px solid rgba(210, 210, 210, 220);"
+            "}"
+        )
 
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        text = self.text() or self.placeholderText()
-        if text:
-            width = QFontMetrics(self.font()).horizontalAdvance(text) + 24
-            self.setMinimumWidth(max(self._collapsed_min_width, width))
+    def enterEvent(self, event):
+        QToolTip.showText(QCursor.pos(), self.toolTip(), self)
+        super().enterEvent(event)
 
-    def focusOutEvent(self, event):
-        self.setMinimumWidth(self._collapsed_min_width)
-        super().focusOutEvent(event)
+    def leaveEvent(self, event):
+        QToolTip.hideText()
+        super().leaveEvent(event)
 
 
 class OrganoidCounterWidget(QWidget):
@@ -113,10 +150,9 @@ class OrganoidCounterWidget(QWidget):
         self.model_name = list(settings.MODELS.keys())[self.model_id]
         
         # init params
-        self.window_sizes, self.downsampling = self._load_initial_window_defaults(window_sizes, downsampling)
+        self.window_sizes, self.downsampling, self.min_diameter, self.confidence = \
+            self._load_initial_window_defaults(window_sizes, downsampling, min_diameter, confidence)
         self.window_overlap = window_overlap
-        self.min_diameter = min_diameter
-        self.confidence = confidence
 
         self.image_layer_names = []
         self.image_layer_name = None 
@@ -129,7 +165,7 @@ class OrganoidCounterWidget(QWidget):
         self.original_contrast = {}
         self.stored_confidences = {}
         self.stored_diameters = {}
-        self.output_widget = None
+        self.annotation_widget = None
         self.legend_box = None
 
         # Annotation Mode 
@@ -185,8 +221,8 @@ class OrganoidCounterWidget(QWidget):
         container = QWidget()
         container_layout = QVBoxLayout(container)
         container_layout.addWidget(self._setup_data_browser_widget())
-        container_layout.addWidget(self._setup_input_widget())
-        container_layout.addWidget(self._setup_output_widget())
+        container_layout.addWidget(self._setup_model_widget())
+        container_layout.addWidget(self._setup_annotation_widget())
         container_layout.addStretch(1)  # Push everything to top
 
         # Wrap in scroll area
@@ -429,7 +465,7 @@ class OrganoidCounterWidget(QWidget):
             # If current image was removed, show first remaining if any
             if self.image_layer_name is None and self.image_layer_names:
                 self.image_layer_name = self.image_layer_names[0]
-                self._update_image_name_display()
+                # self._update_image_name_display()
         if len(removed_shape_layer_names)>0:
             self._update_remove_shapes(removed_shape_layer_names)
             self.shape_layer_names = new_shape_layer_names
@@ -690,20 +726,30 @@ class OrganoidCounterWidget(QWidget):
         if hasattr(self, "downsampling_textbox"):
             self.downsampling_textbox.setText(",".join(str(value) for value in self.downsampling))
 
-    def _load_initial_window_defaults(self, window_sizes: List, downsampling: List):
-        """Load global defaults unless explicit non-default constructor values are provided."""
+    def _load_initial_window_defaults(
+        self,
+        window_sizes: List,
+        downsampling: List,
+        min_diameter: int,
+        confidence: float,
+    ):
+        """Load global defaults unless explicit non-default constructor values are provided.
+        Returns (window_sizes, downsampling, min_diameter, confidence).
+        """
         default_ws = list(settings.DEFAULT_WINDOW_SIZES)
         default_ds = list(settings.DEFAULT_DOWNSAMPLING)
+        default_md = 30
+        default_conf = 0.8
         passed_ws = list(window_sizes)
         passed_ds = list(downsampling)
 
-        # Keep explicit non-default constructor overrides.
+        # Keep explicit non-default constructor overrides (window params only).
         if passed_ws != default_ws or passed_ds != default_ds:
-            return passed_ws, passed_ds
+            return passed_ws, passed_ds, min_diameter, confidence
 
         prefs = self._read_global_preferences()
         if prefs is None:
-            return default_ws, default_ds
+            return default_ws, default_ds, default_md, default_conf
 
         loaded_ws = prefs.get("window_sizes", default_ws)
         loaded_ds = prefs.get("downsampling", default_ds)
@@ -715,9 +761,14 @@ class OrganoidCounterWidget(QWidget):
             self._validate_window_downsampling(loaded_ws, loaded_ds)
         except (TypeError, ValueError):
             show_warning("Global defaults file is invalid. Using built-in defaults.")
-            return default_ws, default_ds
+            return default_ws, default_ds, default_md, default_conf
 
-        return loaded_ws, loaded_ds
+        loaded_md = int(prefs.get("min_diameter", default_md))
+        loaded_conf = float(prefs.get("confidence", default_conf))
+        loaded_md = max(0, loaded_md)
+        loaded_conf = max(0.05, min(1.0, loaded_conf))
+
+        return loaded_ws, loaded_ds, loaded_md, loaded_conf
 
     def _read_global_preferences(self):
         prefs_path = settings.GLOBAL_DEFAULTS_FILE
@@ -734,7 +785,7 @@ class OrganoidCounterWidget(QWidget):
             return None
 
     def _on_save_global_defaults_click(self):
-        """Persist window sizes/downsampling as global defaults."""
+        """Persist all current settings as global defaults."""
         try:
             window_sizes = self._parse_positive_int_list(
                 self.window_sizes_textbox.text(),
@@ -752,6 +803,8 @@ class OrganoidCounterWidget(QWidget):
         prefs = {
             "window_sizes": window_sizes,
             "downsampling": downsampling,
+            "min_diameter": self.min_diameter_spinbox.value(),
+            "confidence": self.confidence_slider.value() / 100,
         }
         try:
             settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -764,21 +817,21 @@ class OrganoidCounterWidget(QWidget):
         self.window_sizes = window_sizes
         self.downsampling = downsampling
         self._sync_window_settings_textboxes()
-        show_info("Saved global defaults for window sizes and downsampling.")
+        show_info("Saved global defaults for all settings.")
 
-    def _on_reset_global_defaults_click(self):
-        """Reset global defaults to built-in values and update the current UI."""
-        try:
-            if settings.GLOBAL_DEFAULTS_FILE.exists():
-                settings.GLOBAL_DEFAULTS_FILE.unlink()
-        except OSError as exc:
-            show_error(f"Failed to reset global defaults: {exc}")
-            return
+    # def _on_reset_global_defaults_click(self):
+    #     """Reset global defaults to built-in values and update the current UI."""
+    #     try:
+    #         if settings.GLOBAL_DEFAULTS_FILE.exists():
+    #             settings.GLOBAL_DEFAULTS_FILE.unlink()
+    #     except OSError as exc:
+    #         show_error(f"Failed to reset global defaults: {exc}")
+    #         return
 
-        self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
-        self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
-        self._sync_window_settings_textboxes()
-        show_info("Reset global defaults to built-in values.")
+    #     self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
+    #     self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
+    #     self._sync_window_settings_textboxes()
+    #     show_info("Reset global defaults to built-in values.")
 
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
@@ -844,25 +897,30 @@ class OrganoidCounterWidget(QWidget):
         if len(self.shape_layer_names)==0: return
         self._rerun()
 
-    def _update_image_name_display(self):
-        """Update the read-only image name box to show the current image layer name."""
-        if hasattr(self, 'image_layer_selection') and self.image_layer_selection is not None:
-            self.image_layer_selection.setText(self.image_layer_name or '')
+    # def _update_image_name_display(self):
+    #     """Update the read-only image name box to show the current image layer name."""
+    #     if hasattr(self, 'image_layer_selection') and self.image_layer_selection is not None:
+    #         self.image_layer_selection.setText(self.image_layer_name or '')
 
     def _on_reset_click(self):
-        """ Is called whenever Reset Configs button is clicked """
-        # reset params
+        """Reset all settings to built-in defaults."""
+        # Reset min diameter (block signal to avoid triggering _rerun mid-reset)
         self.min_diameter = 30
-        self.confidence = 0.8
-        vis_confidence = int(self.confidence*100)
+        self.min_diameter_spinbox.blockSignals(True)
         self.min_diameter_spinbox.setValue(self.min_diameter)
-        self.confidence_slider.setValue(vis_confidence)
-        if self.image_layer_name:
-            # reset to original image
-            self._ensure_image_cached(self.image_layer_name)
-            if self.image_layer_name in self.original_images:
-                self.viewer.layers[self.image_layer_name].data = self.original_images[self.image_layer_name]
-                self.viewer.layers[self.image_layer_name].contrast_limits = self.original_contrast[self.image_layer_name]
+        self.min_diameter_spinbox.blockSignals(False)
+
+        # Reset confidence
+        self.confidence = 0.8
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider.blockSignals(True)
+        self.confidence_slider.setValue(int(self.confidence * 100))
+        self.confidence_slider.blockSignals(False)
+
+        # Reset window sizes and downsampling
+        self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
+        self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
+        self._sync_window_settings_textboxes()
 
     def _on_screenshot_click(self):
         """ Is called whenever Take Screenshot button is clicked """
@@ -879,7 +937,7 @@ class OrganoidCounterWidget(QWidget):
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
-        if self.output_widget is None:
+        if self.annotation_widget is None:
             return
         self._refresh_color_mapping_box()
     
@@ -994,7 +1052,7 @@ class OrganoidCounterWidget(QWidget):
                 self.original_images[layer_name] = self.viewer.layers[layer_name].data
                 self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
-        self._update_image_name_display()
+        # self._update_image_name_display()
         layer = self.viewer.layers[self.image_layer_name]
         self.organoiDL.set_scale(tuple(layer.scale[-2:]))
 
@@ -1008,7 +1066,7 @@ class OrganoidCounterWidget(QWidget):
             del self.original_contrast[removed_layer]
         if self.image_layer_name in removed_layers:
             self.image_layer_name = None
-            self._update_image_name_display()
+            # self._update_image_name_display()
 
     def _setup_mouse_callback(self):
         """Set up a mouse move callback to display box IDs in the status bar."""
@@ -1224,77 +1282,137 @@ class OrganoidCounterWidget(QWidget):
         #new_bboxes = self.cur_shapes_layer.data
         #self.organoiDL.update_bboxes_scores(new_bboxes, new_scores, new_ids)
         
-    def _setup_input_widget(self):
-        """
-        Sets up the GUI part which corresposnds to the input configurations
-        """
-        # setup all the individual boxes
-        input_box = self._setup_input_box()
-        model_box = self._setup_model_box()
-        window_sizes_box = self._setup_window_sizes_box()
-        downsampling_box = self._setup_downsampling_box()
-        global_defaults_box = self._setup_global_defaults_box()
-        run_box = self._setup_run_box()
-        annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single, multi-annotation or multi-class annotation
+    def _make_help_button(self, tooltip_text: str):
+        """Return a small circular '?' button that shows a tooltip on hover."""
+        btn = QToolButton(self)
+        btn.setText("?")
+        btn.setFixedSize(18, 18)
+        btn.setToolTip(tooltip_text)
+        btn.setFocusPolicy(Qt.NoFocus)
+        btn.setCursor(Qt.WhatsThisCursor)
+        btn.setStyleSheet(
+            "QToolButton {"
+            "  border: 1px solid palette(mid);"
+            "  border-radius: 9px;"
+            "  font-weight: bold;"
+            "  font-size: 11px;"
+            "  color: palette(button-text);"
+            "  background: palette(button);"
+            "  padding: 0px;"
+            "}"
+            "QToolButton:hover {"
+            "  background: palette(highlight);"
+            "  color: palette(highlighted-text);"
+            "}"
+        )
+        return btn
+
+    def _make_help_button(self, tooltip_text: str) -> _HelpButton:
+            """Return a small circular '?' button that shows a tooltip immediately on hover."""
+            return _HelpButton(tooltip_text, self)
+
+    def _setup_model_widget(self):
+        """Sets up the Model section: selection, run parameters, controls."""
+        self.organoid_number_label = QLabel('Number of organoids: ' + str(self.num_organoids), self)
+        self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
         self._setup_progress_box()
 
-        # and add all these to the layout
-        input_widget = QGroupBox('Input configurations')
+        model_widget = QGroupBox('Inference Settings')
         vbox = QVBoxLayout()
-        vbox.addLayout(input_box)
-        vbox.addLayout(model_box)
-        vbox.addLayout(window_sizes_box)
-        vbox.addLayout(downsampling_box)
-        vbox.addLayout(global_defaults_box)
-        vbox.addLayout(run_box)
-        vbox.addLayout(annotation_mode_box)  # Add the annotation dropdown
-        vbox.addWidget(self.progress_box)
-        input_widget.setLayout(vbox)
-        return input_widget
-
-    def _setup_output_widget(self):
-        """
-        Sets up the GUI part which corresposnds to the parameters and outputs
-        """
-        # setup all the individual boxes
-        self.organoid_number_label = QLabel('Number of organoids: '+str(self.num_organoids), self)
-        self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # and add all these to the layout
-        self.output_widget = QGroupBox('Parameters and outputs')
-        vbox = QVBoxLayout()
+        vbox.addLayout(self._setup_model_box())
+        vbox.addLayout(self._setup_window_sizes_box())
+        vbox.addLayout(self._setup_downsampling_box())
+        vbox.addLayout(self._setup_run_box())
         vbox.addLayout(self._setup_min_diameter_box())
-        vbox.addLayout(self._setup_confidence_box() )
+        vbox.addLayout(self._setup_confidence_box())
+        vbox.addWidget(self.organoid_number_label)
+        vbox.addLayout(self._setup_bottom_buttons_box())
+        vbox.addWidget(self.progress_box)
+        model_widget.setLayout(vbox)
+        return model_widget
+
+    # def _setup_input_widget(self):
+    #     """
+    #     Sets up the GUI part which corresposnds to the input configurations
+    #     """
+    #     # setup all the individual boxes
+    #     model_box = self._setup_model_box()
+    #     window_sizes_box = self._setup_window_sizes_box()
+    #     downsampling_box = self._setup_downsampling_box()
+    #     global_defaults_box = self._setup_global_defaults_box()
+    #     run_box = self._setup_run_box()
+    #     annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single, multi-annotation or multi-class annotation
+    #     self._setup_progress_box()
+
+    #     # and add all these to the layout
+    #     input_widget = QGroupBox('Input configurations')
+    #     vbox = QVBoxLayout()
+    #     vbox.addLayout(model_box)
+    #     vbox.addLayout(window_sizes_box)
+    #     vbox.addLayout(downsampling_box)
+    #     vbox.addLayout(global_defaults_box)
+    #     vbox.addLayout(run_box)
+    #     vbox.addLayout(annotation_mode_box)  # Add the annotation dropdown
+    #     vbox.addWidget(self.progress_box)
+    #     input_widget.setLayout(vbox)
+    #     return input_widget
+
+    def _setup_annotation_widget(self):
+        """Sets up the Annotation section: mode selection and class-color legend."""
+        self.annotation_widget = QGroupBox('Annotation')
+        vbox = QVBoxLayout()
+        vbox.addLayout(self._setup_annotation_mode_box())
         if self.annotation_mode != 0:
-            # vbox.addWidget(self._setup_color_mapping_box())
-            self.legend_box = self._setup_color_mapping_box()  # keep reference
+            self.legend_box = self._setup_color_mapping_box()
             vbox.addWidget(self.legend_box)
         else:
             self.legend_box = None
-        vbox.addWidget(self.organoid_number_label)
-        vbox.addLayout(self._setup_reset_box())
-        
-        self.output_widget.setLayout(vbox)
-        return self.output_widget
+        self.annotation_widget.setLayout(vbox)
+        return self.annotation_widget
 
-    def _setup_input_box(self):
-        """
-        Sets up the GUI part where the input image is defined
-        """
-        #self.input_box = QGroupBox()
-        hbox = QHBoxLayout()
-        # setup label
-        image_label = QLabel('Image: ', self)
-        image_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # read-only box showing the current image name; expands on click to show full name
-        self.image_layer_selection = _ExpandableImageNameEdit(self)
-        self.image_layer_selection.setReadOnly(True)
-        self.image_layer_selection.setPlaceholderText('No image loaded')
-        if self.image_layer_name:
-            self.image_layer_selection.setText(self.image_layer_name)
-        # and add all these to the layout
-        hbox.addWidget(image_label, 2)
-        hbox.addWidget(self.image_layer_selection, 8)
-        return hbox
+    # def _setup_output_widget(self):
+    #     """
+    #     Sets up the GUI part which corresposnds to the parameters and outputs
+    #     """
+    #     # setup all the individual boxes
+    #     self.organoid_number_label = QLabel('Number of organoids: '+str(self.num_organoids), self)
+    #     self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+    #     # and add all these to the layout
+    #     self.output_widget = QGroupBox('Parameters and outputs')
+    #     vbox = QVBoxLayout()
+    #     vbox.addLayout(self._setup_min_diameter_box())
+    #     vbox.addLayout(self._setup_confidence_box() )
+    #     if self.annotation_mode != 0:
+    #         # vbox.addWidget(self._setup_color_mapping_box())
+    #         self.legend_box = self._setup_color_mapping_box()  # keep reference
+    #         vbox.addWidget(self.legend_box)
+    #     else:
+    #         self.legend_box = None
+    #     vbox.addWidget(self.organoid_number_label)
+    #     vbox.addLayout(self._setup_reset_box())
+        
+    #     self.output_widget.setLayout(vbox)
+    #     return self.output_widget
+
+    # def _setup_input_box(self):
+    #     """
+    #     Sets up the GUI part where the input image is defined
+    #     """
+    #     #self.input_box = QGroupBox()
+    #     hbox = QHBoxLayout()
+    #     # setup label
+    #     image_label = QLabel('Image: ', self)
+    #     image_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+    #     # read-only box showing the current image name; expands on click to show full name
+    #     self.image_layer_selection = _ExpandableImageNameEdit(self)
+    #     self.image_layer_selection.setReadOnly(True)
+    #     self.image_layer_selection.setPlaceholderText('No image loaded')
+    #     if self.image_layer_name:
+    #         self.image_layer_selection.setText(self.image_layer_name)
+    #     # and add all these to the layout
+    #     hbox.addWidget(image_label, 2)
+    #     hbox.addWidget(self.image_layer_selection, 8)
+    #     return hbox
 
     def _setup_model_box(self):
         """
@@ -1335,7 +1453,6 @@ class OrganoidCounterWidget(QWidget):
         # setup label
         window_sizes_label = QLabel('Window sizes: [size1, size2, ...]', self)
         window_sizes_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        window_sizes_label.setToolTip(info_text)
         # setup textbox
         self.window_sizes_textbox = QLineEdit(self)
         text = [str(window_size) for window_size in self.window_sizes]
@@ -1343,10 +1460,10 @@ class OrganoidCounterWidget(QWidget):
         self.window_sizes_textbox.setText(text)
         self.window_sizes_textbox.returnPressed.connect(self._on_window_sizes_changed)
         self.window_sizes_textbox.editingFinished.connect(self._on_window_sizes_changed)
-        self.window_sizes_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(window_sizes_label)
-        hbox.addWidget(self.window_sizes_textbox)   
+        hbox.addWidget(self.window_sizes_textbox)
+        hbox.addWidget(self._make_help_button(info_text))
         #self.window_sizes_box.setLayout(hbox)   
         #self.window_sizes_box.setStyleSheet("border: 0px")  
         return hbox
@@ -1365,7 +1482,6 @@ class OrganoidCounterWidget(QWidget):
         # setup label
         downsampling_label = QLabel('Downsampling: [ds1, ds2, ...]', self)
         downsampling_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        downsampling_label.setToolTip(info_text)
         # setup textbox
         self.downsampling_textbox = QLineEdit(self)
         text = [str(ds) for ds in self.downsampling]
@@ -1373,10 +1489,10 @@ class OrganoidCounterWidget(QWidget):
         self.downsampling_textbox.setText(text)
         self.downsampling_textbox.returnPressed.connect(self._on_downsampling_changed)
         self.downsampling_textbox.editingFinished.connect(self._on_downsampling_changed)
-        self.downsampling_textbox.setToolTip(info_text)
         # and add all these to the layout
         hbox.addWidget(downsampling_label)
-        hbox.addWidget(self.downsampling_textbox) 
+        hbox.addWidget(self.downsampling_textbox)
+        hbox.addWidget(self._make_help_button(info_text))
         #self.downsampling_box.setLayout(hbox)
         #self.downsampling_box.setStyleSheet("border: 0px") 
         return hbox
@@ -1389,13 +1505,46 @@ class OrganoidCounterWidget(QWidget):
         hbox.addStretch(1)
         run_btn = QPushButton("Run Organoid Counter")
         run_btn.clicked.connect(self._on_run_click)
-        run_btn.setStyleSheet("border: 0px")
+        run_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078D4;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #106EBE;
+            }
+            QPushButton:pressed {
+                background-color: #005A9E;
+            }
+        """)
         hbox.addWidget(run_btn)
 
-        # ADD CANCEL BUTTON
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self._on_cancel_click)
         self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5C5C5C;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 14px;
+            }
+            QPushButton:hover {
+                background-color: #6E6E6E;
+            }
+            QPushButton:pressed {
+                background-color: #4A4A4A;
+            }
+            QPushButton:disabled {
+                background-color: #3A3A3A;
+                color: #888888;
+            }
+        """)
         hbox.addWidget(self.cancel_btn)
 
         hbox.addStretch(1)
@@ -1542,17 +1691,15 @@ class OrganoidCounterWidget(QWidget):
         return outer
 
     def _refresh_color_mapping_box(self):
-        """
-        Refresh the color mapping box based on the current annotation mode.
-        """
-        if self.output_widget is None:
+        """Refresh the color mapping box based on the current annotation mode."""
+        if self.annotation_widget is None:
             return
 
-        layout = self.output_widget.layout()
+        layout = self.annotation_widget.layout()
         if layout is None:
             return
 
-        # remove existing legend box from layout (if any)
+        # Remove existing legend box from layout (if any)
         if self.legend_box is not None:
             layout.removeWidget(self.legend_box)
             self.legend_box.deleteLater()
@@ -1563,14 +1710,14 @@ class OrganoidCounterWidget(QWidget):
         self.master_class_checkbox = None
         self.visible_classes_filter = set(self.selected_classes)
 
-        # Detection-Only → nothing further
+        # Detection-Only: no legend needed
         if self.annotation_mode == 0:
             return
 
-        # Build a new one reflecting the current annotation mode
+        # Build a new legend reflecting the current annotation mode
         self.legend_box = self._setup_color_mapping_box()
-
-        self.output_widget.layout().insertWidget(2, self.legend_box)
+        # Insert at index 1, after the annotation mode row at index 0
+        self.annotation_widget.layout().insertWidget(1, self.legend_box)
 
         self._apply_class_filter()
         self._refresh_class_counts()
@@ -1693,42 +1840,64 @@ class OrganoidCounterWidget(QWidget):
             'anchor': 'upper_left',
         }
 
-    def _setup_reset_box(self):
-        """
-        Sets up the GUI part where screenshot and reset are available to the user
-        """
-        #self.reset_box = QGroupBox()
+    def _setup_bottom_buttons_box(self):
+        """Sets up the combined Set as Default, Reset, and Screenshot buttons."""
         hbox = QHBoxLayout()
-        # setup button for resetting parameters
-        self.reset_btn = QPushButton("Reset Configs")
+        hbox.addStretch(1)
+
+        self.save_defaults_btn = QPushButton("Set as Default")
+        self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
+
+        self.reset_btn = QPushButton("Reset")
         self.reset_btn.clicked.connect(self._on_reset_click)
-        # setup button for taking screenshot of current viewer
-        self.screenshot_btn = QPushButton("Take screenshot")
+
+        self.screenshot_btn = QPushButton("Screenshot")
         self.screenshot_btn.clicked.connect(self._on_screenshot_click)
-        # and add all these to the layout
-        hbox.addStretch(1)
-        hbox.addWidget(self.screenshot_btn)
-        hbox.addSpacing(15)
+
+        hbox.addWidget(self.save_defaults_btn)
+        hbox.addSpacing(10)
         hbox.addWidget(self.reset_btn)
+        hbox.addSpacing(10)
+        hbox.addWidget(self.screenshot_btn)
         hbox.addStretch(1)
-        #self.reset_box.setLayout(hbox)
-        #self.reset_box.setStyleSheet("border: 0px")
         return hbox
 
-    def _setup_global_defaults_box(self):
-        """Set up controls for persisting global defaults."""
-        hbox = QHBoxLayout()
-        self.save_defaults_btn = QPushButton("Set Parameters as Default")
-        self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
-        self.save_defaults_btn.setStyleSheet("border: 0px")
-        self.reset_defaults_btn = QPushButton("Reset parameters")
-        self.reset_defaults_btn.clicked.connect(self._on_reset_global_defaults_click)
-        self.reset_defaults_btn.setStyleSheet("border: 0px")
-        hbox.addStretch(1)
-        hbox.addWidget(self.save_defaults_btn)
-        hbox.addWidget(self.reset_defaults_btn)
-        hbox.addStretch(1)
-        return hbox
+    # def _setup_reset_box(self):
+    #     """
+    #     Sets up the GUI part where screenshot and reset are available to the user
+    #     """
+    #     #self.reset_box = QGroupBox()
+    #     hbox = QHBoxLayout()
+    #     # setup button for resetting parameters
+    #     self.reset_btn = QPushButton("Reset Configs")
+    #     self.reset_btn.clicked.connect(self._on_reset_click)
+    #     # setup button for taking screenshot of current viewer
+    #     self.screenshot_btn = QPushButton("Take screenshot")
+    #     self.screenshot_btn.clicked.connect(self._on_screenshot_click)
+    #     # and add all these to the layout
+    #     hbox.addStretch(1)
+    #     hbox.addWidget(self.screenshot_btn)
+    #     hbox.addSpacing(15)
+    #     hbox.addWidget(self.reset_btn)
+    #     hbox.addStretch(1)
+    #     #self.reset_box.setLayout(hbox)
+    #     #self.reset_box.setStyleSheet("border: 0px")
+    #     return hbox
+
+    # def _setup_global_defaults_box(self):
+    #     """Set up controls for persisting global defaults."""
+    #     hbox = QHBoxLayout()
+    #     self.save_defaults_btn = QPushButton("Set Parameters as Default")
+    #     self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
+    #     self.save_defaults_btn.setStyleSheet("border: 0px")
+    #     self.reset_defaults_btn = QPushButton("Reset parameters")
+    #     self.reset_defaults_btn.clicked.connect(self._on_reset_global_defaults_click)
+    #     self.reset_defaults_btn.setStyleSheet("border: 0px")
+    #     hbox.addStretch(1)
+    #     hbox.addWidget(self.save_defaults_btn)
+    #     hbox.addWidget(self.reset_defaults_btn)
+    #     hbox.addStretch(1)
+    #     return hbox
 
     def _setup_data_browser_widget(self):
         """
@@ -1851,6 +2020,97 @@ class OrganoidCounterWidget(QWidget):
         # Expand all folders by default
         self.file_tree.expandAll()
 
+    def _meta_json_path(self, img_path: Path) -> Path:
+        """Return the path for the per-image settings metadata file."""
+        return img_path.with_suffix('.meta.json')
+
+    def _save_image_metadata(self, img_path: Path) -> None:
+        """Persist current UI settings alongside the annotation for img_path."""
+        meta = {
+            "confidence": self.confidence,
+            "min_diameter": self.min_diameter,
+            "model_name": self.model_name,
+            "window_sizes": self.window_sizes,
+            "downsampling": self.downsampling,
+            "annotation_mode": self.annotation_mode,
+        }
+        try:
+            utils.write_to_json(str(self._meta_json_path(img_path)), meta)
+        except OSError as exc:
+            show_warning(f"Could not save image metadata: {exc}")
+
+    def _load_image_metadata(self, img_path: Path) -> None:
+        """Load saved settings for img_path. Falls back to global defaults, then built-in defaults."""
+        # Read global defaults as fallback for images with no per-image metadata
+        global_prefs = self._read_global_preferences() or {}
+        fallback_confidence = float(global_prefs.get("confidence", 0.8))
+        fallback_min_diameter = int(global_prefs.get("min_diameter", 30))
+        fallback_window_sizes = global_prefs.get("window_sizes", list(settings.DEFAULT_WINDOW_SIZES))
+        fallback_downsampling = global_prefs.get("downsampling", list(settings.DEFAULT_DOWNSAMPLING))
+
+        meta_path = self._meta_json_path(img_path)
+        if meta_path.exists():
+            try:
+                with meta_path.open("r", encoding="utf-8") as fh:
+                    meta = json.load(fh)
+            except (OSError, json.JSONDecodeError):
+                show_warning(f"Could not read image metadata for {img_path.name}. Using defaults.")
+                meta = {}
+        else:
+            meta = {}  # No per-image metadata: fall back to global defaults
+
+        # Apply confidence
+        confidence = float(meta.get("confidence", fallback_confidence))
+        self.confidence = confidence
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider.blockSignals(True)
+        self.confidence_slider.setValue(int(self.confidence * 100))
+        self.confidence_slider.blockSignals(False)
+
+        # Apply min diameter
+        min_diameter = int(meta.get("min_diameter", fallback_min_diameter))
+        self.min_diameter = min_diameter
+        self.min_diameter_spinbox.blockSignals(True)
+        self.min_diameter_spinbox.setValue(self.min_diameter)
+        self.min_diameter_spinbox.blockSignals(False)
+
+        # Apply model name
+        model_name = meta.get("model_name", list(settings.MODELS.keys())[0])
+        if model_name in settings.MODELS:
+            self.model_name = model_name
+            idx = self.model_selection.findText(model_name)
+            if idx >= 0:
+                self.model_selection.blockSignals(True)
+                self.model_selection.setCurrentIndex(idx)
+                self.model_selection.blockSignals(False)
+
+        # Apply window sizes and downsampling
+        window_sizes = meta.get("window_sizes", fallback_window_sizes)
+        downsampling = meta.get("downsampling", fallback_downsampling)
+        try:
+            window_sizes = [int(v) for v in window_sizes]
+            downsampling = [int(v) for v in downsampling]
+            if any(v <= 0 for v in window_sizes + downsampling):
+                raise ValueError
+            self._validate_window_downsampling(window_sizes, downsampling)
+            self.window_sizes = window_sizes
+            self.downsampling = downsampling
+        except (TypeError, ValueError):
+            self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
+            self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
+        self._sync_window_settings_textboxes()
+
+        # Apply annotation mode
+        annotation_mode = int(meta.get("annotation_mode", 2))
+        if annotation_mode != self.annotation_mode:
+            self.annotation_mode_dropdown.blockSignals(True)
+            self.annotation_mode_dropdown.setCurrentIndex(annotation_mode)
+            self.annotation_mode_dropdown.blockSignals(False)
+            self.annotation_mode = annotation_mode
+            self.selected_classes = self.annotation_mode_mapping[annotation_mode]["classes"]
+            self.update_key_bindings()
+            self._refresh_color_mapping_box()
+
     def _draft_json_path(self, img_path: Path) -> Path:
         """Return the path for the draft (incomplete) annotation file."""
         return img_path.with_suffix('.json.draft')
@@ -1969,6 +2229,7 @@ class OrganoidCounterWidget(QWidget):
             draft_path.unlink()
 
         show_info(f'Saved annotation to {json_path.name}')
+        self._save_image_metadata(img_path)
         return True
 
     def _save_incomplete_annotation_for_image(self, img_path: Path) -> bool:
@@ -2015,6 +2276,7 @@ class OrganoidCounterWidget(QWidget):
             csv_path.unlink()
 
         show_info(f'Saved draft annotation to {draft_path.name}')
+        self._save_image_metadata(img_path)
         return True
 
     def _resolve_image_scale(self, img_path: Path) -> tuple[float, float]:
@@ -2068,7 +2330,7 @@ class OrganoidCounterWidget(QWidget):
         new_image_names = self._get_layer_names()
         if new_image_names:
             self.image_layer_name = new_image_names[-1]
-            self._update_image_name_display()
+            # self._update_image_name_display()
             img_layer = self.viewer.layers[self.image_layer_name]
             img_data = utils.squeeze_img(np.asarray(img_layer.data))
             if len(img_data.shape) == 3 and img_data.shape[-1] in (3, 4):
@@ -2152,6 +2414,7 @@ class OrganoidCounterWidget(QWidget):
                                 self.annotation_mode_dropdown.setCurrentIndex(best_annotation_mode)
                                         
                             
+        self._load_image_metadata(img_path)
         # Refresh the tree to show updated status
         self._refresh_file_tree()
 
