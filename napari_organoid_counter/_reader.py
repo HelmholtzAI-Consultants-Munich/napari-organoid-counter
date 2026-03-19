@@ -60,7 +60,11 @@ def reader_function_data_management(path: str) -> layers.Shapes:
     # scale will adjust boxes according to physical resolution of image
     scale = (float(annot[key]['scale_x']), float(annot[key]['scale_y'])) # do only once
     # name of layer which will be created
-    labels_name = 'Labels-'+Path(path).stem
+    p = Path(path)
+    stem = p.stem  # strips last suffix
+    if p.suffix == '.draft':
+        stem = Path(stem).stem  # strips remaining .json from .json.draft
+    labels_name = 'Labels-' + stem
     # properties used for dusplaying text
     properties = {'box_id': ids,'scores': scores, 'labels': lables}
     text_params = {'string': 'ID: {box_id}\nConf.: {scores:.2f}',
