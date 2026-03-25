@@ -1600,8 +1600,15 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_spinbox.setSingleStep(10)
         self.min_diameter_spinbox.setValue(self.min_diameter)
         self.min_diameter_spinbox.valueChanged.connect(self._on_diameter_changed)
+        info_text = (
+            "Each organoid is approximated as an ellipse whose two diameters (D1, D2) are the\n"
+            "width and height of its bounding box in micrometers (µm).\n"
+            "Any detection where either diameter is below this threshold is discarded.\n"
+            "Requires the image pixel scale to be set correctly. Set to 0 to keep all detections."
+        )
         hbox.addWidget(min_diameter_label, 4)
         hbox.addWidget(self.min_diameter_spinbox, 6)
+        hbox.addWidget(self._make_help_button(info_text))
         return hbox
 
     def _setup_confidence_box(self):
@@ -1624,10 +1631,17 @@ class OrganoidCounterWidget(QWidget):
         self.confidence_textbox = QLineEdit(self)
         self.confidence_textbox.setText(str(self.confidence))
         self.confidence_textbox.returnPressed.connect(self._on_confidence_textbox_changed)  
+        info_text = (
+            "Minimum score the model must assign to a detection for it to be kept.\n"
+            "Range: 0.05 (keep almost everything) to 1.0 (only near-certain detections).\n"
+            "Higher values reduce false positives but may miss real organoids.\n"
+            "You can type a value directly or drag the slider. Press Enter to apply a typed value."
+        )
         # and add all these to the layout
         hbox.addWidget(confidence_label, 3)
         hbox.addWidget(self.confidence_textbox, 1)
         hbox.addWidget(self.confidence_slider, 6)
+        hbox.addWidget(self._make_help_button(info_text))
         return hbox
 
     def _setup_color_mapping_box(self) -> QGroupBox:
