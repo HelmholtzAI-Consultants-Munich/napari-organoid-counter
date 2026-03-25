@@ -29,28 +29,10 @@ from qtpy.QtWidgets import (
 from napari_organoid_counter._orgacount import OrganoiDL
 from napari_organoid_counter import _utils as utils
 from napari_organoid_counter import settings
+from bioio import BioImage
 
 import warnings
 warnings.filterwarnings("ignore")
-
-
-# class _ExpandableImageNameEdit(QLineEdit):
-#     """Read-only line edit that expands to show full text when clicked/focused."""
-
-#     def __init__(self, parent=None):
-#         super().__init__(parent)
-#         self._collapsed_min_width = 80
-
-#     def focusInEvent(self, event):
-#         super().focusInEvent(event)
-#         text = self.text() or self.placeholderText()
-#         if text:
-#             width = QFontMetrics(self.font()).horizontalAdvance(text) + 24
-#             self.setMinimumWidth(max(self._collapsed_min_width, width))
-
-#     def focusOutEvent(self, event):
-#         self.setMinimumWidth(self._collapsed_min_width)
-#         super().focusOutEvent(event)
 
 
 class _HelpButton(QToolButton):
@@ -214,7 +196,15 @@ class OrganoidCounterWidget(QWidget):
         self.file_tree: QTreeWidget | None = None
 
         # Supported image extensions
-        self.supported_image_extensions = {'.tif', '.TIF', '.tiff', '.TIFF', '.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG'}
+        self.supported_image_extensions = {
+            '.tif', '.TIF', '.tiff', '.TIFF',
+            '.png', '.PNG',
+            '.jpg', '.JPG', '.jpeg', '.JPEG',
+            '.czi',           # bioio-czi
+            '.nd2',           # bioio-nd2
+            '.lif',           # bioio-lif
+            '.dv', '.r3d',    # bioio-dv
+        }
 
         # Setup GUI        
         # Create a container widget for all content
@@ -244,11 +234,6 @@ class OrganoidCounterWidget(QWidget):
         if len(self.image_layer_names)>0: self._update_added_image(self.image_layer_names)
         self.shape_layer_names = self._get_layer_names(layer_type=layers.Shapes)
         if len(self.shape_layer_names)>0: self._update_added_shapes(self.shape_layer_names)
-
-        # for name in self.shape_layer_names:
-        #     layer = self.viewer.layers[name]
-        #     self._shape_name_by_id[id(layer)] = layer.name
-        #     layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
 
         # and watch for newly added images or shapes
         self.viewer.layers.events.inserted.connect(self._added_layer)
@@ -343,9 +328,6 @@ class OrganoidCounterWidget(QWidget):
             mode_name = self.annotation_mode_mapping[self.annotation_mode]["name"]
             binding_message = ", ".join(bound_keys)
             show_info(f"Switched to {mode_name} annotation mode. Use {binding_message}.")
-
-            #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode. Use ")
-            #show_info(f"Use {key} to change edge color to class {class_num}.")
 
     def _on_shapes_layer_renamed(self, layer):
         old = self._shape_name_by_id.get(id(layer))
@@ -443,11 +425,6 @@ class OrganoidCounterWidget(QWidget):
         if len(new_shape_layer_names)>0:
             self._update_added_shapes(new_shape_layer_names)
             self.shape_layer_names.extend(new_shape_layer_names)
-
-            # for name in new_shape_layer_names:
-            #     layer = self.viewer.layers[name]
-            #     self._shape_name_by_id[id(layer)] = layer.name
-            #     layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
 
             # reset edge color
             for name in new_shape_layer_names:
@@ -648,9 +625,6 @@ class OrganoidCounterWidget(QWidget):
         # End timing
         end_time = time.time()
         elapsed_time = end_time - start_time
-        
-        # Save timing information
-        # self._save_timing_info(elapsed_time)
 
         # update widget with results
         self._update_vis_bboxes(bboxes, scores, labels, box_ids, labels_layer_name)
@@ -819,29 +793,11 @@ class OrganoidCounterWidget(QWidget):
         self._sync_window_settings_textboxes()
         show_info("Saved global defaults for all settings.")
 
-    # def _on_reset_global_defaults_click(self):
-    #     """Reset global defaults to built-in values and update the current UI."""
-    #     try:
-    #         if settings.GLOBAL_DEFAULTS_FILE.exists():
-    #             settings.GLOBAL_DEFAULTS_FILE.unlink()
-    #     except OSError as exc:
-    #         show_error(f"Failed to reset global defaults: {exc}")
-    #         return
-
-    #     self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
-    #     self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
-    #     self._sync_window_settings_textboxes()
-    #     show_info("Reset global defaults to built-in values.")
-
     def _rerun(self):
         """ Is called whenever user changes one of the two parameter sliders """
         # check if OrganoiDL instance exists - create it if not and set there current boxes, scores and ids        
         if self.organoiDL.img_scale[0]==0: 
             self.organoiDL.set_scale(self.cur_shapes_layer.scale)
-        # self.organoiDL.update_next_id(self.cur_shapes_name, len(self.cur_shapes_layer.scale)+1)
-        # box_ids = self.cur_shapes_layer.properties['box_id']
-        # next_id_val = (int(box_ids.max()) + 1) if box_ids.size else 1
-        # self.organoiDL.update_next_id(self.cur_shapes_name, next_id_val)
 
         # GUARD: ensure backend dicts exist under the current layer name
         if self.cur_shapes_name not in self.organoiDL.pred_bboxes:
@@ -897,11 +853,6 @@ class OrganoidCounterWidget(QWidget):
         if len(self.shape_layer_names)==0: return
         self._rerun()
 
-    # def _update_image_name_display(self):
-    #     """Update the read-only image name box to show the current image layer name."""
-    #     if hasattr(self, 'image_layer_selection') and self.image_layer_selection is not None:
-    #         self.image_layer_selection.setText(self.image_layer_name or '')
-
     def _on_reset_click(self):
         """Reset all settings to built-in defaults."""
         # Reset min diameter (block signal to avoid triggering _rerun mid-reset)
@@ -935,7 +886,6 @@ class OrganoidCounterWidget(QWidget):
         """Callback for dropdown selection."""
         self.annotation_mode = mode
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
-        #show_info(f"Switched to: {self.annotation_mode_mapping[mode]['name']} mode.")
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
         if self.annotation_widget is None:
             return
@@ -1052,7 +1002,6 @@ class OrganoidCounterWidget(QWidget):
                 self.original_images[layer_name] = self.viewer.layers[layer_name].data
                 self.original_contrast[layer_name] = self.viewer.layers[layer_name].contrast_limits
         self.image_layer_name = added_items[0]
-        # self._update_image_name_display()
         layer = self.viewer.layers[self.image_layer_name]
         self.organoiDL.set_scale(tuple(layer.scale[-2:]))
 
@@ -1162,26 +1111,6 @@ class OrganoidCounterWidget(QWidget):
         self._apply_class_filter()
         self._refresh_class_counts()
         self.organoiDL.update_next_id(self.cur_shapes_name)
-
-        # layer = self.viewer.layers[self.cur_shapes_name]
-        # self._shape_name_by_id[id(layer)] = layer.name
-        # layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
-
-        
-    # def _update_remove_shapes(self, removed_layers):
-    #     """
-    #     Update the selection box by removing shape layer names if it they been deleted and set 
-    #     """
-    #     # update selection box by removing image names if image has been deleted       
-    #     for removed_layer in removed_layers:
-    #         item_id = self.output_layer_selection.findText(removed_layer)
-    #         self.output_layer_selection.removeItem(item_id)
-    #         if removed_layer==self.cur_shapes_name: 
-    #             self._update_num_organoids(0)
-    #             self.organoiDL.remove_shape_from_dict(self.cur_shapes_name)
-
-    #     self._apply_class_filter()
-    #     self._refresh_class_counts()
 
     def _update_remove_shapes(self, removed_layers):
         """
@@ -1331,32 +1260,6 @@ class OrganoidCounterWidget(QWidget):
         model_widget.setLayout(vbox)
         return model_widget
 
-    # def _setup_input_widget(self):
-    #     """
-    #     Sets up the GUI part which corresposnds to the input configurations
-    #     """
-    #     # setup all the individual boxes
-    #     model_box = self._setup_model_box()
-    #     window_sizes_box = self._setup_window_sizes_box()
-    #     downsampling_box = self._setup_downsampling_box()
-    #     global_defaults_box = self._setup_global_defaults_box()
-    #     run_box = self._setup_run_box()
-    #     annotation_mode_box = self._setup_annotation_mode_box() # Annotation mode dropdown to select single, multi-annotation or multi-class annotation
-    #     self._setup_progress_box()
-
-    #     # and add all these to the layout
-    #     input_widget = QGroupBox('Input configurations')
-    #     vbox = QVBoxLayout()
-    #     vbox.addLayout(model_box)
-    #     vbox.addLayout(window_sizes_box)
-    #     vbox.addLayout(downsampling_box)
-    #     vbox.addLayout(global_defaults_box)
-    #     vbox.addLayout(run_box)
-    #     vbox.addLayout(annotation_mode_box)  # Add the annotation dropdown
-    #     vbox.addWidget(self.progress_box)
-    #     input_widget.setLayout(vbox)
-    #     return input_widget
-
     def _setup_annotation_widget(self):
         """Sets up the Annotation section: mode selection and class-color legend."""
         self.annotation_widget = QGroupBox('Annotation')
@@ -1369,50 +1272,6 @@ class OrganoidCounterWidget(QWidget):
             self.legend_box = None
         self.annotation_widget.setLayout(vbox)
         return self.annotation_widget
-
-    # def _setup_output_widget(self):
-    #     """
-    #     Sets up the GUI part which corresposnds to the parameters and outputs
-    #     """
-    #     # setup all the individual boxes
-    #     self.organoid_number_label = QLabel('Number of organoids: '+str(self.num_organoids), self)
-    #     self.organoid_number_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-    #     # and add all these to the layout
-    #     self.output_widget = QGroupBox('Parameters and outputs')
-    #     vbox = QVBoxLayout()
-    #     vbox.addLayout(self._setup_min_diameter_box())
-    #     vbox.addLayout(self._setup_confidence_box() )
-    #     if self.annotation_mode != 0:
-    #         # vbox.addWidget(self._setup_color_mapping_box())
-    #         self.legend_box = self._setup_color_mapping_box()  # keep reference
-    #         vbox.addWidget(self.legend_box)
-    #     else:
-    #         self.legend_box = None
-    #     vbox.addWidget(self.organoid_number_label)
-    #     vbox.addLayout(self._setup_reset_box())
-        
-    #     self.output_widget.setLayout(vbox)
-    #     return self.output_widget
-
-    # def _setup_input_box(self):
-    #     """
-    #     Sets up the GUI part where the input image is defined
-    #     """
-    #     #self.input_box = QGroupBox()
-    #     hbox = QHBoxLayout()
-    #     # setup label
-    #     image_label = QLabel('Image: ', self)
-    #     image_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-    #     # read-only box showing the current image name; expands on click to show full name
-    #     self.image_layer_selection = _ExpandableImageNameEdit(self)
-    #     self.image_layer_selection.setReadOnly(True)
-    #     self.image_layer_selection.setPlaceholderText('No image loaded')
-    #     if self.image_layer_name:
-    #         self.image_layer_selection.setText(self.image_layer_name)
-    #     # and add all these to the layout
-    #     hbox.addWidget(image_label, 2)
-    #     hbox.addWidget(self.image_layer_selection, 8)
-    #     return hbox
 
     def _setup_model_box(self):
         """
@@ -1493,8 +1352,6 @@ class OrganoidCounterWidget(QWidget):
         hbox.addWidget(downsampling_label)
         hbox.addWidget(self.downsampling_textbox)
         hbox.addWidget(self._make_help_button(info_text))
-        #self.downsampling_box.setLayout(hbox)
-        #self.downsampling_box.setStyleSheet("border: 0px") 
         return hbox
 
     def _setup_run_box(self):
@@ -1876,43 +1733,6 @@ class OrganoidCounterWidget(QWidget):
         hbox.addStretch(1)
         return hbox
 
-    # def _setup_reset_box(self):
-    #     """
-    #     Sets up the GUI part where screenshot and reset are available to the user
-    #     """
-    #     #self.reset_box = QGroupBox()
-    #     hbox = QHBoxLayout()
-    #     # setup button for resetting parameters
-    #     self.reset_btn = QPushButton("Reset Configs")
-    #     self.reset_btn.clicked.connect(self._on_reset_click)
-    #     # setup button for taking screenshot of current viewer
-    #     self.screenshot_btn = QPushButton("Take screenshot")
-    #     self.screenshot_btn.clicked.connect(self._on_screenshot_click)
-    #     # and add all these to the layout
-    #     hbox.addStretch(1)
-    #     hbox.addWidget(self.screenshot_btn)
-    #     hbox.addSpacing(15)
-    #     hbox.addWidget(self.reset_btn)
-    #     hbox.addStretch(1)
-    #     #self.reset_box.setLayout(hbox)
-    #     #self.reset_box.setStyleSheet("border: 0px")
-    #     return hbox
-
-    # def _setup_global_defaults_box(self):
-    #     """Set up controls for persisting global defaults."""
-    #     hbox = QHBoxLayout()
-    #     self.save_defaults_btn = QPushButton("Set Parameters as Default")
-    #     self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
-    #     self.save_defaults_btn.setStyleSheet("border: 0px")
-    #     self.reset_defaults_btn = QPushButton("Reset parameters")
-    #     self.reset_defaults_btn.clicked.connect(self._on_reset_global_defaults_click)
-    #     self.reset_defaults_btn.setStyleSheet("border: 0px")
-    #     hbox.addStretch(1)
-    #     hbox.addWidget(self.save_defaults_btn)
-    #     hbox.addWidget(self.reset_defaults_btn)
-    #     hbox.addStretch(1)
-    #     return hbox
-
     def _setup_data_browser_widget(self):
         """
         Sets up the Data Browser section with folder selection, file tree, and navigation buttons.
@@ -2293,19 +2113,6 @@ class OrganoidCounterWidget(QWidget):
         self._save_image_metadata(img_path)
         return True
 
-    def _resolve_image_scale(self, img_path: Path) -> tuple[float, float]:
-        """Return the authoritative (scale_y, scale_x) µm/px for the loaded image layer.
-
-        Prefers the scale already set by napari's reader. Falls back to TIFF
-        metadata when the reader reported the default (1.0, 1.0).
-        """
-        layer_scale = tuple(self.viewer.layers[self.image_layer_name].scale[-2:])
-        if layer_scale == (1.0, 1.0) and img_path.suffix.lower() in {'.tif', '.tiff'}:
-            tiff_scale = utils.read_tiff_scale_um(str(img_path))
-            if tiff_scale is not None:
-                return tiff_scale
-        return layer_scale
-
     @staticmethod
     def _scales_equal(s1, s2, tol: float = 1e-6) -> bool:
         """Return True if two (y, x) scale tuples are equal within tolerance."""
@@ -2329,58 +2136,48 @@ class OrganoidCounterWidget(QWidget):
             if name in self.viewer.layers:
                 del self.viewer.layers[name]
 
-        # Load the new image (suppress tifffile OME discontiguous-storage warning for
-        # TIFFs where stored shape and OME metadata disagree, e.g. (H,W,3) vs (H,W))
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                'ignore',
-                message='.*OME series cannot handle discontiguous storage.*',
-            )
-            self.viewer.open(str(img_path))
-        self.current_image_path = img_path
+        # Load image using BioIO for format-agnostic reading and physical-scale extraction.
+        # current_image_path is set only after a successful load to avoid stale state.
+        image_scale = (1.0, 1.0)  # safe default; also used by the annotation block below
+        try:
+            bio_img = BioImage(str(img_path))
 
-        image_scale = (1.0, 1.0)  # safe default if no image layer is found
-        # Update the image layer name in the widget and convert RGB to grayscale if needed
-        new_image_names = self._get_layer_names()
-        if new_image_names:
-            self.image_layer_name = new_image_names[-1]
-            # self._update_image_name_display()
-            img_layer = self.viewer.layers[self.image_layer_name]
-            img_data = utils.squeeze_img(np.asarray(img_layer.data))
-            if len(img_data.shape) == 3 and img_data.shape[-1] in (3, 4):
-                # RGB or RGBA: convert to grayscale and replace with a new 2D layer
-                # (replacing data in-place breaks napari's transform chain for 2D vs 3D)
+            # physical_pixel_sizes is always a PhysicalPixelSizes NamedTuple;
+            # .Y and .X are float or None.
+            pps = bio_img.physical_pixel_sizes
+            if pps.Y is not None and pps.X is not None and float(pps.Y) > 0 and float(pps.X) > 0:
+                image_scale = (float(pps.Y), float(pps.X))
+
+            # BioIO uses 'S' as the sample (RGB/RGBA) dimension; it is only present
+            # as an attribute on dims when the file is a multi-sample image.
+            # hasattr is the correct guard — grayscale dims objects have no 'S' attr.
+            has_s = hasattr(bio_img.dims, 'S') and bio_img.dims.S > 1
+            if has_s:
+                # RGB or RGBA: collapse T/C/Z to 0, keep S, then convert to grayscale.
                 from skimage.color import rgb2gray
-                gray_data = rgb2gray(img_data[..., :3])
-                if img_data.dtype == np.uint8:
-                    gray_data = (gray_data * 255).astype(np.uint8)
-                elif img_data.dtype == np.uint16:
-                    gray_data = (gray_data * 65535).astype(np.uint16)
+                img_yxs = bio_img.get_image_data("YXS", T=0, C=0, Z=0)
+                img_data = rgb2gray(img_yxs[..., :3])
+                if img_yxs.dtype == np.uint8:
+                    img_data = (img_data * 255).astype(np.uint8)
+                elif img_yxs.dtype == np.uint16:
+                    img_data = (img_data * 65535).astype(np.uint16)
                 else:
-                    gray_data = gray_data.astype(img_data.dtype)
-                scale = np.array(img_layer.scale)
-                if scale.size > 2:
-                    scale = scale[:2]  # 2D (y, x) for image
-                layer_name = self.image_layer_name
-                del self.viewer.layers[layer_name]
-                self.viewer.add_image(gray_data, name=layer_name, scale=tuple(scale))
-                self.image_layer_name = layer_name
+                    img_data = img_data.astype(img_yxs.dtype)
+            else:
+                # Grayscale or single-channel: collapse every non-spatial dim to index 0.
+                img_data = bio_img.get_image_data("YX", T=0, C=0, Z=0)
+
+            layer_name = img_path.stem
+            self.viewer.add_image(img_data, name=layer_name, scale=image_scale)
+            self.current_image_path = img_path
+            self.image_layer_name = layer_name
             self._ensure_image_cached(self.image_layer_name)
             self._preprocess()
-
-            # # Use scale already set by napari's reader if it is non-trivial,
-            # # otherwise fall back to parsing TIFF metadata directly.
-            # layer_scale = tuple(self.viewer.layers[self.image_layer_name].scale[-2:])
-            # if layer_scale == (1.0, 1.0) and img_path.suffix.lower() in {'.tif', '.tiff'}:
-            #     tiff_scale = utils.read_tiff_scale_um(str(img_path))
-            #     if tiff_scale is not None:
-            #         self.viewer.layers[self.image_layer_name].scale = tiff_scale
-            #         layer_scale = tiff_scale
-            # self.organoiDL.set_scale(layer_scale)
-
-            image_scale = self._resolve_image_scale(img_path)
-            self.viewer.layers[self.image_layer_name].scale = image_scale
             self.organoiDL.set_scale(image_scale)
+
+        except Exception as exc:
+            show_error(f"Failed to load '{img_path.name}': {exc}")
+            return
 
         # Check for existing annotation and load it (.json first, then .json.draft)
         json_path = img_path.with_suffix('.json')
