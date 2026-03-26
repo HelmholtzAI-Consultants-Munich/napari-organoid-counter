@@ -2,7 +2,7 @@
 
 A napari plugin to automatically count lung organoids from microscopy imaging data. Several deep learning (DL) models were trained on patches of 2D microscopy data—some for object detection only, and one for both detection and binary classification. Model inference is run using a sliding window approach, with a 50% overlap and the option for predicting on multiple window sizes and scales, the results of which are then merged using NMS.
 
-## Fearures of latest version.
+## Fearures of latest version
 Here is a list of the main features that napari-organoid-counter offers:
 
 Support for multiple DL models: 
@@ -15,14 +15,8 @@ Support for multiple DL models:
 * **Saving Annotations with Class Labels** – When saving annotations, the class label is recorded in the .json file based on the bounding box color.
 * **Load and Correct Existing Annotations** – You can now load and modify previously saved annotations (note: these must have been saved using v3 of the plugin).
 <!-- * **Improved Readability** – Only model confidence is displayed in the viewer for better readability. -->
-* **Bug Fixed** – Fixed bugs and improved stability.
 <!-- * **Data Browser** - Easily navigate thought all the images in your folder from ... TODO -->
 <!-- * **Interactive Workflow** – Work seamlessly with multiple shape layers, adjusting parameters and switching between layers as needed. -->
-
-Technical Extensions:
-* Allows for Python 3.10
-* Extensive testing
-
 
 ## Quickstart
 
