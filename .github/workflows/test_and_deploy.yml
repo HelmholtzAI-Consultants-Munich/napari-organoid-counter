@@ -47,14 +47,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-qt pytest-cookies
+          # Prevent OpenCV from using its bundled Qt libraries
+          export QT_QPA_PLATFORM_PLUGIN_PATH=""
           pip install -e ".[testing]"
 
       - name: Test
         uses: aganders3/headless-gui@v1
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QPA_PLATFORM_PLUGIN_PATH: ""
         with:
           run: |
             python -m pytest -s -v --color=yes
-
+  
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
     # and requires that you have put your twine API key in your 
