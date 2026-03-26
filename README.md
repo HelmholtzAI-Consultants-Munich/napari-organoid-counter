@@ -1,4 +1,4 @@
-# Napari Organoid Counter - Version 0.3 is out! 
+# Napari Organoid Counter - Version 0.2.6 is out! 
 
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
@@ -16,7 +16,7 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/demo-plugin-v2.gif)
 
-This demo showcases the features of Version 0.2, while the new functionalities of Version 0.3 are detailed in the "What's New in V3?" section.
+This demo showcases the features of Version 0.2, while the new functionalities of Version 0.2.6 are detailed in the "What's New in V3?" section.
 
 ----------------------------------
 
