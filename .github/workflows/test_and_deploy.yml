@@ -48,7 +48,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-qt pytest-cookies
           pip install -e ".[testing]"
-          pip install "mmcv<2.2.0,>=2.0.0rc4" --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
 
       - name: Test
         uses: aganders3/headless-gui@v1
