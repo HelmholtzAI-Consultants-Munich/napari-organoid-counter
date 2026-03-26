@@ -16,7 +16,7 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ![Alt Text](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/demo-plugin-v2.gif)
 
-This demo showcases the features of Version 0.2, while the new functionalities of Version 0.2.6 are detailed in the "What's New in V3?" section.
+This demo showcases the features of Version 0.2, while the new functionalities of the latest version are detailed in the "Latest version features" section.
 
 ----------------------------------
 
@@ -25,28 +25,29 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 ## Installation
 
-This plugin has been tested with python 3.9 and 3.10 - you may consider using conda or mamba to create your dedicated environment before running the `napari-organoid-counter`.
+This plugin has been tested with python 3.10 - you may consider using conda or mamba to create your dedicated environment before running the `napari-organoid-counter`.
 
 1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
     ``` pip install napari-organoid-counter```
 
-   To install latest development version :
+   To install for a developer:
 
-    ```pip install git+https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter.git```
+    ```git clone https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter```
+    ```pip install -e .```
 
-For installing on a Windows machine directly from within napari, follow the instuctions [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+For installing on a Windows machine directly from within napari, follow the instuctions [here](readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
 
-## What's new in v3?
-Checkout our *What's New in v3* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#whats-new-in-v3).
+## Latest version features
+Checkout *Features of the latest version* [here](.napari/DESCRIPTION.md#whats-new-in-v3).
 
 ## How to use?
-After installing, launch the plugin directly from your terminal:
+1. To launch the plugin directly from your terminal:
 ```bash
 napari -w napari-organoid-counter
 ```
 
-Or add a shell alias for convenience by adding this to your `~/.zshrc` (macOS) or `~/.bashrc` (Linux):
+2. For convenience you can add a shell alias  by adding this to your `~/.zshrc` (macOS) or `~/.bashrc` (Linux):
 ```bash
 alias organoid='napari -w napari-organoid-counter'
 ```
@@ -62,9 +63,9 @@ You can now launch the plugin simply by running:
 organoid
 ```
 
-You can also start napari manually and select the plugin from the drop down menu.
+3. Alternatively, you can also start napari manually and select the plugin from the drop down menu.
 
-For more information on this plugin, its intended audience, and a Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#quickstart).
+For more information on this plugin, its intended audience, and a Quickstart guide go to our [Quickstart guide](.napari/DESCRIPTION.md#quickstart).
 
 ## Contributing
 
