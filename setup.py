@@ -14,13 +14,13 @@ onnxruntime_pkg = 'onnxruntime-gpu' if has_cuda() else 'onnxruntime'
 
 setup(
     name='napari-organoid-counter',
-    author = christinab12, francesco-campi, abdulkaderghandoura
-    author_email = christina.bukas@helmholtz-muenchen.de, francesco.campi@helmholtz-munich.de, abdulkader.ghandoura@helmholtz-munich.de
+    author = "Christina Bukas, Francesco Campi, Abdulkader Ghandoura",
+    author_email = "francesco.campi@helmholtz-munich.de", 
     url='https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter',
     license='MIT',
     description='A plugin to automatically count lung organoids using Deep Learning.',
     packages=find_packages(),
-    python_requires='>3.9, <3.11',
+    python_requires='>=3.10, <3.11',
     install_requires=[
         'napari[all]>=0.4.17,<0.5.0',
         'bioio==3.3.0',
