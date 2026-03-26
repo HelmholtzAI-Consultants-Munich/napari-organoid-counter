@@ -4,8 +4,7 @@ napari_organoid_counter/experiments
 napari_organoid_counter/timing_logs
 notebooks/
 data/
-onnx/
-data/
+onnx_notebooks/
 notebooks/
 
 # Byte-compiled / optimized / DLL files

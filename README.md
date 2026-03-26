@@ -25,7 +25,7 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 ## Installation
 
-This plugin has been tested with python 3.9 and 3.10 - you may consider using conda to create your dedicated environment before running the `napari-organoid-counter`.
+This plugin has been tested with python 3.9 and 3.10 - you may consider using conda or mamba to create your dedicated environment before running the `napari-organoid-counter`.
 
 1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
@@ -41,9 +41,30 @@ For installing on a Windows machine directly from within napari, follow the inst
 Checkout our *What's New in v3* [here](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#whats-new-in-v3).
 
 ## How to use?
-After installing, you can start napari (either by typing ```napari``` in your terminal or by launching the application) and select the plugin from the drop down menu.
+After installing, launch the plugin directly from your terminal:
+```bash
+napari -w napari-organoid-counter
+```
 
-For more information on this plugin, its' intended audience, as well as Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#quickstart).
+Or add a shell alias for convenience by adding this to your `~/.zshrc` (macOS) or `~/.bashrc` (Linux):
+```bash
+alias organoid='napari -w napari-organoid-counter'
+```
+
+Then reload your shell config:
+```bash
+source ~/.zshrc   # macOS
+source ~/.bashrc  # Linux
+```
+
+You can now launch the plugin simply by running:
+```bash
+organoid
+```
+
+You can also start napari manually and select the plugin from the drop down menu.
+
+For more information on this plugin, its intended audience, and a Quickstart guide go to our [Quickstart guide](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/ten_classes_annotation/.napari/DESCRIPTION.md#quickstart).
 
 ## Contributing
 
@@ -58,12 +79,9 @@ Distributed under the terms of the [MIT] license,
 ## Dependencies
 
 
-```napari-organoid-counter``` uses the ```napari-aicsimageio```<sup>[1]</sup> <sup>[2]</sup> plugin for reading and processing CZI images.
+```napari-organoid-counter``` uses the ```BioIO```<sup>[1]</sup> for reading and processing images.
 
-[1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, AICSImageIO Contributors (2021). AICSImageIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/AllenCellModeling/aicsimageio
-
-[2] Eva Maxfield Brown, Talley Lambert, Peter Sobolewski, Napari-AICSImageIO Contributors (2021). Napari-AICSImageIO: Image Reading in Napari using AICSImageIO [Computer software]. GitHub. https://github.com/AllenCellModeling/napari-aicsimageio
-
+[1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, Sean Meharry, Brian Whitney, AICSImageIO Contributors (2023). BioIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/bioio-devs/bioio
 
 ## Issues
 
