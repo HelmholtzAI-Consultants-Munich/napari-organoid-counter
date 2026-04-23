@@ -22,6 +22,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.10, <3.11',
     install_requires=[
+        'numpy<2',
         'napari[all]>=0.4.17,<0.5.0',
         'bioio==3.3.0',
         'bioio-ome-tiff==1.4.0',
