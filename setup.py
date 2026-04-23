@@ -35,7 +35,7 @@ setup(
         'torch<=2.5.1',
         'lxml_html_clean==0.4.4',
         'torchvision<=0.20.1',
-        'opencv-python',
+        'opencv-python==4.11.0.86',
         f'{onnxruntime_pkg}>=1.23.0',
     ],
     extras_require={
