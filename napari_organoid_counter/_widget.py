@@ -30,6 +30,8 @@ from napari_organoid_counter._orgacount import OrganoiDL
 from napari_organoid_counter import _utils as utils
 from napari_organoid_counter import settings
 from bioio import BioImage
+from bioio_tifffile import Reader as TiffFileReader
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -2140,7 +2142,11 @@ class OrganoidCounterWidget(QWidget):
         # current_image_path is set only after a successful load to avoid stale state.
         image_scale = (1.0, 1.0)  # safe default; also used by the annotation block below
         try:
-            bio_img = BioImage(str(img_path))
+            if img_path.suffix.lower() in ['.tif', '.tiff']:
+                reader = TiffFileReader
+            else:
+                reader = None
+            bio_img = BioImage(str(img_path), reader=reader)
 
             # physical_pixel_sizes is always a PhysicalPixelSizes NamedTuple;
             # .Y and .X are float or None.
