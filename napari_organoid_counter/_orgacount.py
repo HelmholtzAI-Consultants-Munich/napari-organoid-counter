@@ -170,7 +170,7 @@ class OrganoiDL():
             labels_list = []    
         
         # Profiling variables
-        start_time = time.perf_counter()
+        # start_time = time.perf_counter()
         profiling_stats = {}
 
         target_h, target_w = self.model_expect_size
@@ -187,8 +187,8 @@ class OrganoiDL():
                 _, _, crop_h, crop_w = img_crop.shape
                 scale_factor = min(target_w / crop_w, target_h / crop_h)
                 new_h, new_w = int(crop_h * scale_factor), int(crop_w * scale_factor)
-                resize_factor_x = window_size / new_h
-                resize_factor_y = window_size / new_w
+                resize_factor_x = window_size / new_w
+                resize_factor_y = window_size / new_h
 
                 with profile_section('resize', profiling_stats):
                     img_hwc_uint8 = (img_crop[0].cpu().numpy().transpose(1, 2, 0) * 255.0).astype(np.uint8)
@@ -222,21 +222,21 @@ class OrganoiDL():
                     labels_list.append(labels[bbox_id])
 
         # Calculate and print profiling results
-        total_time = time.perf_counter() - start_time
-        resize_time = profiling_stats.get('resize', 0)
-        resize_count = profiling_stats.get('resize_count', 0)
-        resize_percentage = (resize_time / total_time * 100) if total_time > 0 else 0
+        # total_time = time.perf_counter() - start_time
+        # resize_time = profiling_stats.get('resize', 0)
+        # resize_count = profiling_stats.get('resize_count', 0)
+        # resize_percentage = (resize_time / total_time * 100) if total_time > 0 else 0
 
-        print(f"\n{'='*60}")
-        print(f"Profiling Results for sliding_window()")
-        print(f"{'='*60}")
-        print(f"Total function time:        {total_time:.4f} seconds")
-        print(f"resize_keep_ratio_numpy:")
-        print(f"  - Total time:             {resize_time:.4f} seconds")
-        print(f"  - Percentage of total:    {resize_percentage:.2f}%")
-        print(f"  - Number of calls:        {resize_count}")
-        print(f"  - Average time per call:  {resize_time/resize_count:.6f} seconds" if resize_count > 0 else "  - Average time per call:  N/A")
-        print(f"{'='*60}\n")
+        # print(f"\n{'='*60}")
+        # print(f"Profiling Results for sliding_window()")
+        # print(f"{'='*60}")
+        # print(f"Total function time:        {total_time:.4f} seconds")
+        # print(f"resize_keep_ratio_numpy:")
+        # print(f"  - Total time:             {resize_time:.4f} seconds")
+        # print(f"  - Percentage of total:    {resize_percentage:.2f}%")
+        # print(f"  - Number of calls:        {resize_count}")
+        # print(f"  - Average time per call:  {resize_time/resize_count:.6f} seconds" if resize_count > 0 else "  - Average time per call:  N/A")
+        # print(f"{'='*60}\n")
 
         return pred_bboxes, scores_list, labels_list
 
