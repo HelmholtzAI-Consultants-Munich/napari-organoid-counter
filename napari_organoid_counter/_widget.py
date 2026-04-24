@@ -152,8 +152,8 @@ class OrganoidCounterWidget(QWidget):
         self.annotation_widget = None
         self.legend_box = None
 
-        # Annotation Mode 
-        self.annotation_mode = 2 # Default to Detection Only mode (0)
+        # Annotation mode default at startup (Detection Only is 0).
+        self.annotation_mode = 2
 
         # Mapping annotation modes to names and valid class sets
         self.annotation_mode_mapping = {
@@ -167,6 +167,7 @@ class OrganoidCounterWidget(QWidget):
                 "name": f"{n+1} Classes",
                 "classes": set(range(n+1)),
             }
+        self.annotation_mode = self._load_initial_annotation_mode(default_mode=2)
 
         # Mapping class numbers to colors
         self.color_mapping = {
@@ -746,6 +747,26 @@ class OrganoidCounterWidget(QWidget):
 
         return loaded_ws, loaded_ds, loaded_md, loaded_conf
 
+    def _coerce_annotation_mode(self, raw_mode, fallback: int) -> int:
+        """Convert annotation mode to a valid dropdown index."""
+        try:
+            mode = int(raw_mode)
+        except (TypeError, ValueError):
+            return fallback
+        if mode not in self.annotation_mode_mapping:
+            return fallback
+        return mode
+
+    def _load_initial_annotation_mode(self, default_mode: int = 2) -> int:
+        """Load annotation mode startup default from global preferences."""
+        prefs = self._read_global_preferences()
+        if prefs is None:
+            return default_mode
+        return self._coerce_annotation_mode(
+            prefs.get("annotation_mode", default_mode),
+            default_mode,
+        )
+
     def _read_global_preferences(self):
         prefs_path = settings.GLOBAL_DEFAULTS_FILE
         if not prefs_path.exists():
@@ -759,6 +780,19 @@ class OrganoidCounterWidget(QWidget):
         except (OSError, json.JSONDecodeError, ValueError):
             show_warning("Could not read global defaults file. Using built-in defaults.")
             return None
+
+    def _save_global_preferences_partial(self, updates: dict) -> bool:
+        """Persist only selected global preference keys, preserving existing values."""
+        prefs = self._read_global_preferences() or {}
+        prefs.update(updates)
+        try:
+            settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            with settings.GLOBAL_DEFAULTS_FILE.open("w", encoding="utf-8") as fh:
+                json.dump(prefs, fh, indent=2)
+            return True
+        except OSError as exc:
+            show_warning(f"Failed to persist preferences: {exc}")
+            return False
 
     def _on_save_global_defaults_click(self):
         """Persist all current settings as global defaults."""
@@ -781,6 +815,7 @@ class OrganoidCounterWidget(QWidget):
             "downsampling": downsampling,
             "min_diameter": self.min_diameter_spinbox.value(),
             "confidence": self.confidence_slider.value() / 100,
+            "annotation_mode": self.annotation_mode,
         }
         try:
             settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -889,6 +924,7 @@ class OrganoidCounterWidget(QWidget):
         self.annotation_mode = mode
         self.selected_classes = self.annotation_mode_mapping[mode]["classes"]
         self.update_key_bindings()  # Update key bindings based on the selected annotation mode
+        self._save_global_preferences_partial({"annotation_mode": self.annotation_mode})
         if self.annotation_widget is None:
             return
         self._refresh_color_mapping_box()
@@ -1883,6 +1919,10 @@ class OrganoidCounterWidget(QWidget):
         fallback_min_diameter = int(global_prefs.get("min_diameter", 30))
         fallback_window_sizes = global_prefs.get("window_sizes", list(settings.DEFAULT_WINDOW_SIZES))
         fallback_downsampling = global_prefs.get("downsampling", list(settings.DEFAULT_DOWNSAMPLING))
+        fallback_annotation_mode = self._coerce_annotation_mode(
+            global_prefs.get("annotation_mode", self.annotation_mode),
+            self.annotation_mode,
+        )
 
         meta_path = self._meta_json_path(img_path)
         if meta_path.exists():
@@ -1937,7 +1977,10 @@ class OrganoidCounterWidget(QWidget):
         self._sync_window_settings_textboxes()
 
         # Apply annotation mode
-        annotation_mode = int(meta.get("annotation_mode", 2))
+        annotation_mode = self._coerce_annotation_mode(
+            meta.get("annotation_mode", fallback_annotation_mode),
+            fallback_annotation_mode,
+        )
         if annotation_mode != self.annotation_mode:
             self.annotation_mode_dropdown.blockSignals(True)
             self.annotation_mode_dropdown.setCurrentIndex(annotation_mode)
