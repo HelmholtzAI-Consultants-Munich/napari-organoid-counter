@@ -1,8 +1,14 @@
 model-weights/
 test_img/
+napari_organoid_counter/experiments
+napari_organoid_counter/timing_logs
+notebooks/
+data/
+onnx_notebooks/
+notebooks/
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*/__pycache__/
 *.py[cod]
 *$py.class
 

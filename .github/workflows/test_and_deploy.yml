@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", 3.9] 
+        python-version: ["3.10"] 
     env:
       DISPLAY: ':99.0'
     steps:
@@ -35,6 +35,7 @@ jobs:
 
       # these libraries enable testing on Qt on linux
       - uses: tlambert03/setup-qt-libs@v1
+        if: runner.os == 'Linux'
       
       # strategy borrowed from vispy for installing opengl libs on windows
       - name: Install Windows OpenGL
@@ -48,14 +49,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-qt pytest-cookies
           pip install -e ".[testing]"
-          pip install "mmcv<2.2.0,>=2.0.0rc4" --find-links https://download.openmmlab.com/mmcv/dist/${{ matrix.python-version }}/torch2.4.0/cpu
+          pip uninstall -y opencv-python opencv-contrib-python
+          pip install opencv-python-headless
 
       - name: Test
         uses: aganders3/headless-gui@v1
         with:
           run: |
             python -m pytest -s -v --color=yes
-
+  
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
     # and requires that you have put your twine API key in your 
@@ -68,7 +70,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: "3.x"
+          python-version: "3.10"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

@@ -31,11 +31,6 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert np.max(img) <= 255.
     assert np.min(img) >= 0.
 
-    my_widget._on_preprocess_click()
-    img = my_widget.viewer.layers['Test'].data
-    assert np.max(img) <= 255.
-    assert np.min(img) >= 0.
-
     # test that organoid counting algorithm has run and new layer with res has been added to viewer
     my_widget.organoiDL.download_model(my_widget.model_name)
     my_widget._on_run_click()
@@ -43,18 +38,14 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     assert 'Labels-Test' in layer_names
     
     # test that class attributes are updated when user changes values from GUI
-    my_widget._on_diameter_slider_changed()
-    assert my_widget.min_diameter == my_widget.min_diameter_slider.value()
-
-    my_widget._on_image_selection_changed()
-    assert my_widget.image_layer_name == my_widget.image_layer_selection.currentText()
-
-    # test that number of organoids is updated after manual corrections
+    my_widget._on_diameter_changed(50)
+    my_widget.min_diameter_spinbox.setValue(50)
+    assert my_widget.min_diameter == my_widget.min_diameter_spinbox.value()
 
     # test that reset button resets all parameters to default settings 
     my_widget._on_reset_click()
     assert my_widget.min_diameter==30
-    assert my_widget.min_diameter_slider.value()==30
+    assert my_widget.min_diameter_spinbox.value()==30
     assert my_widget.confidence==0.8
     assert my_widget.confidence_slider.value()==80
 

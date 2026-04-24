@@ -1,20 +1,25 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
-import pkgutil
 
 import numpy as np
+import pandas as pd
 import math
 import json
 import csv
-from skimage.transform import rescale
+from skimage.transform import rescale, resize
 from skimage.color import gray2rgb
 
 import torch
 from torchvision.ops import nms
 
 from napari_organoid_counter import settings
+import torch.nn.functional as F
 
+EXCLUDED_MODELS = [
+    "ssd_organoid_best_coco_bbox_mAP_epoch_86.onnx",
+    "rtmdet_l_organoid_best_coco_bbox_mAP_epoch_323.onnx",
+]
 
 def add_local_models():
     """ Checks the models directory for any local models previously added by the user.
@@ -23,7 +28,7 @@ def add_local_models():
     model_names_in_dir = [file for file in os.listdir(settings.MODELS_DIR)]
     model_names_in_dict = [settings.MODELS[key]["filename"] for key in settings.MODELS.keys()]
     for model_name in model_names_in_dir:
-        if model_name not in model_names_in_dict and model_name.endswith(settings.MODEL_TYPE):
+        if model_name not in model_names_in_dict and model_name.endswith(settings.MODEL_TYPE) and model_name not in EXCLUDED_MODELS:
             _ = add_to_dict(model_name)
 
 def add_to_dict(filepath):
@@ -77,34 +82,97 @@ def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
                                                 'confidence': str(scores[idx]),
                                                 'scale_x': str(scales[0]),
                                                 'scale_y': str(scales[1]),
-                                                'class': labels[idx]
+                                                'label': labels[idx],
                                                 }
                         })
     return data_json
 
 def write_to_csv(name, data):
     """ Write data to a csv file. Here data is a list of lists, where each item represents a row in the csv file. """
-    with open(name, 'w') as f:
-        write = csv.writer(f, delimiter=';')
-        write.writerow(['OrganoidID', 'D1[um]','D2[um]', 'Area [um^2]'])
-        write.writerows(data)
+    df = pd.DataFrame(data, columns=['OrganoidID', 'D1[μm]', 'D2[μm]', 'Area[μm^2]', 'Label'])
+    df.to_csv(name, index=False, sep=';')
 
-def get_bbox_diameters(bboxes, bbox_ids, scales):
-    """ Write all data, box diameters and area, ids and scale, to a list so we can later save as a csv """
+def get_bbox_diameters(bboxes, bbox_ids, scales, labels):
+    """ Write all data, box diameters and area, ids, scale and labels to a list so we can later save as a csv """
     data_csv = []
     # save diameters and area of organoids (approximated as ellipses)
-    for idx, bbox in enumerate(bboxes):
-        d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]
-        d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]
-        area = math.pi * d1 * d2
-        data_csv.append([bbox_ids[idx], round(d1,3), round(d2,3), round(area,3)])
+    for idx, bbox, label in zip(bbox_ids, bboxes, labels):
+        d1 = abs(bbox[0][0] - bbox[2][0]) * scales[0]  # X direction (width)
+        d2 = abs(bbox[0][1] - bbox[2][1]) * scales[1]  # Y direction (height)
+        area = math.pi * d1 * d2 / 4  # divide by 4 because d1 and d2 are full diameters, not semi-axes
+        data_csv.append([idx, round(d1,3), round(d2,3), round(area,3), label])
     return data_csv
 
 def squeeze_img(img):
     """ Squeeze image - all dims that have size one will be removed """
     return np.squeeze(img)
 
-def prepare_img(test_img, step, window_size, rescale_factor):
+def resize_keep_ratio_numpy(img, scale=(416, 416)):
+    """
+    Resize a numpy array [B, C, H, W] keeping aspect ratio using skimage.
+
+    Args:
+        img (np.ndarray): shape [B, C, H, W]
+        scale (tuple): target maximum (w, h), e.g. (416, 416)
+
+    Returns:
+        np.ndarray: resized array [B, C, new_h, new_w]
+        (int, int): new size (new_h, new_w)
+        float: scale factor
+    """
+    assert img.ndim == 4, "Expected input shape [B, C, H, W]"
+    B, C, H, W = img.shape
+    target_w, target_h = scale
+
+    # compute scale factor
+    scale_factor = min(target_w / W, target_h / H)
+    new_w, new_h = int(W * scale_factor), int(H * scale_factor)
+
+    resized_batch = []
+    for i in range(B):
+        # [C, H, W] → [H, W, C]
+        img_hwc = np.transpose(img[i], (1, 2, 0))
+        resized = resize(img_hwc, (new_h, new_w), order=1, anti_aliasing=True)
+        # back to [C, H, W]
+        resized_chw = np.transpose(resized, (2, 0, 1))
+        resized_batch.append(resized_chw.astype(np.float32))
+
+    resized_batch = np.stack(resized_batch, axis=0)
+    return resized_batch 
+
+def resize_keep_ratio_torch(img, scale=(416, 416)):
+    """
+    Resize a numpy array [B, C, H, W] keeping aspect ratio using PyTorch.
+    
+    Args:
+        img (np.ndarray): shape [B, C, H, W]
+        scale (tuple): target maximum (w, h), e.g. (416, 416)
+    Returns:
+        torch.Tensor: resized array [B, C, new_h, new_w]
+    """
+    assert img.ndim == 4, "Expected input shape [B, C, H, W]"
+    B, C, H, W = img.shape
+    target_w, target_h = scale
+    
+    # Compute scale factor
+    scale_factor = min(target_w / W, target_h / H)
+    new_w, new_h = int(W * scale_factor), int(H * scale_factor)
+    
+    # Resize using bilinear interpolation (vectorized for entire batch)
+    resized_tensor = F.interpolate(
+        img,
+        size=(new_h, new_w),
+        mode='bilinear',
+        align_corners=False,
+        antialias=True
+    )
+    
+    # Convert back to numpy
+    resized_batch = resized_tensor.cpu().numpy().astype(np.float32)
+    
+    return resized_batch
+
+def prepare_img_onnx(test_img, step, window_size, rescale_factor):
     """ The original image is prepared for running model inference """
     # squeeze and resize image
     test_img = squeeze_img(test_img)
@@ -119,12 +187,19 @@ def prepare_img(test_img, step, window_size, rescale_factor):
     test_img = (255*test_img).astype(np.uint8)
     test_img = gray2rgb(test_img) #[H,W,C]
 
-    # convert from RGB to GBR - expected from DetInferencer 
+    # convert from RGB to GBR to match exported model preprocessing
     test_img = test_img[..., ::-1] 
+
+    test_img = test_img.astype(np.float32) / 255.0
+    # HWC -> CHW
+    test_img = np.transpose(test_img, (2, 0, 1))
+    # Add batch dimension
+    test_img = np.expand_dims(test_img, axis=0)
+    test_img = torch.from_numpy(test_img).to('cuda' if torch.cuda.is_available() else 'cpu')
     
     return test_img, img_height, img_width
 
-def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
+def apply_nms(bbox_preds, scores_preds, labels_preds, iou_thresh=0.5):
     """ Function applies non max suppression to iteratively remove lower scoring boxes which have an IoU greater than iou_threshold 
     with another (higher scoring) box. The boxes and corresponding scores whihc remain are returned. """
     # torchvision returns the indices of the bboxes to keep
@@ -132,7 +207,8 @@ def apply_nms(bbox_preds, scores_preds, iou_thresh=0.5):
     # filter existing boxes and scores and return
     bbox_preds_kept = bbox_preds[keep]
     scores_preds = scores_preds[keep]
-    return bbox_preds_kept, scores_preds
+    labels_preds = labels_preds[keep]
+    return bbox_preds_kept, scores_preds, labels_preds
 
 def convert_boxes_to_napari_view(pred_bboxes):
     """ The bboxes are converted from tensors in model output form to a form which can be visualised in the napari viewer """
@@ -170,28 +246,20 @@ def apply_normalization(img):
     # adapt img to range 0-255
     img_min = np.min(img) # 31.3125 png 0
     img_max = np.max(img) # 2899.25 png 178
-    img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
+    if img_min < 0 or img_max > 255:
+        img_norm = (255 * (img - img_min) / (img_max - img_min)).astype(np.uint8)
+    else:
+        img_norm = img.astype(np.uint8)
     return img_norm
 
-def get_package_init_file(package_name):
-    loader = pkgutil.get_loader(package_name)
-    if loader is None or not hasattr(loader, 'get_filename'):
-        raise ImportError(f"Cannot find package {package_name}")
-    package_path = loader.get_filename(package_name)
-    # Determine the path to the __init__.py file
-    if os.path.isdir(package_path):
-        init_file_path = os.path.join(package_path, '__init__.py')
-    else:
-        init_file_path = package_path
-    if not os.path.isfile(init_file_path):
-        raise FileNotFoundError(f"__init__.py file not found for package {package_name}")
-    return init_file_path
-
-def update_version_in_mmdet_init_file(package_name, old_version, new_version):
-    init_file_path = get_package_init_file(package_name)
-    with open(init_file_path, 'r') as file:
-        lines = file.readlines()
-    with open(init_file_path, 'w') as file:
-        for line in lines:
-            if f"mmcv_maximum_version = '{old_version}'" in line:
-                file.write(line.replace(old_version, new_version))
+def get_edge_color(labels, use_default_color: bool):
+    edge_color = []
+    if use_default_color:  # Detection-Only mode or Deterction only model
+        edge_color = [settings.COLOR_DEFAULT] * len(labels)  # Set all edges to default color (magenta)
+    else:  # For other annotation modes (Binary Classification, 3 classes, etc.)
+        for label in labels:
+            if int(label) == -1:  # Uncertain labels in Binary Classification Mode
+                edge_color.append(settings.COLOR_DEFAULT)  # Set edge color to default for uncertain labels
+            else:
+                edge_color.append(settings.COLOR_MAPPING[int(label)][0])  # Set edge color based on the predicted label
+    return edge_color
