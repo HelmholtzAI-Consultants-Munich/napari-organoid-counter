@@ -130,8 +130,9 @@ class OrganoidCounterWidget(QWidget):
         settings.MODELS_DIR.mkdir(parents=True, exist_ok=True)
         settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         utils.add_local_models()
-        self.model_id = 0
-        self.model_name = list(settings.MODELS.keys())[self.model_id]
+        default_model_name = list(settings.MODELS.keys())[0]
+        self.model_name = self._load_initial_model_name(default_model_name)
+        self.model_id = list(settings.MODELS.keys()).index(self.model_name)
         
         # init params
         self.window_sizes, self.downsampling, self.min_diameter, self.confidence = \
@@ -767,6 +768,16 @@ class OrganoidCounterWidget(QWidget):
             default_mode,
         )
 
+    def _load_initial_model_name(self, default_model_name: str) -> str:
+        """Load model selection startup default from global preferences."""
+        prefs = self._read_global_preferences()
+        if prefs is None:
+            return default_model_name
+        model_name = prefs.get("model_name", default_model_name)
+        if model_name in settings.MODELS:
+            return model_name
+        return default_model_name
+
     def _read_global_preferences(self):
         prefs_path = settings.GLOBAL_DEFAULTS_FILE
         if not prefs_path.exists():
@@ -816,6 +827,7 @@ class OrganoidCounterWidget(QWidget):
             "min_diameter": self.min_diameter_spinbox.value(),
             "confidence": self.confidence_slider.value() / 100,
             "annotation_mode": self.annotation_mode,
+            "model_name": self.model_name,
         }
         try:
             settings.USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -1757,7 +1769,7 @@ class OrganoidCounterWidget(QWidget):
         self.save_defaults_btn = QPushButton("Set as Default")
         self.save_defaults_btn.clicked.connect(self._on_save_global_defaults_click)
 
-        self.reset_btn = QPushButton("Reset")
+        self.reset_btn = QPushButton("Reset Defaults")
         self.reset_btn.clicked.connect(self._on_reset_click)
 
         self.screenshot_btn = QPushButton("Screenshot")
@@ -1919,6 +1931,7 @@ class OrganoidCounterWidget(QWidget):
         fallback_min_diameter = int(global_prefs.get("min_diameter", 30))
         fallback_window_sizes = global_prefs.get("window_sizes", list(settings.DEFAULT_WINDOW_SIZES))
         fallback_downsampling = global_prefs.get("downsampling", list(settings.DEFAULT_DOWNSAMPLING))
+        fallback_model_name = global_prefs.get("model_name", self.model_name)
         fallback_annotation_mode = self._coerce_annotation_mode(
             global_prefs.get("annotation_mode", self.annotation_mode),
             self.annotation_mode,
@@ -1951,7 +1964,7 @@ class OrganoidCounterWidget(QWidget):
         self.min_diameter_spinbox.blockSignals(False)
 
         # Apply model name
-        model_name = meta.get("model_name", list(settings.MODELS.keys())[0])
+        model_name = meta.get("model_name", fallback_model_name)
         if model_name in settings.MODELS:
             self.model_name = model_name
             idx = self.model_selection.findText(model_name)
