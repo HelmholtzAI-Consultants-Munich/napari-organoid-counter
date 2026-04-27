@@ -2,7 +2,7 @@
 
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
-[![DOI](https://zenodo.org/badge/476715320.svg)](https://zenodo.org/badge/latestdoi/476715320)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.12825628.svg)](https://doi.org/10.5281/zenodo.12825628)
 [![License](https://img.shields.io/pypi/l/napari-organoid-counter.svg?color=green)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-organoid-counter.svg?color=green)](https://pypi.org/project/napari-organoid-counter)
 [![Python Version](https://img.shields.io/badge/python-3.10-blue)](https://python.org)
