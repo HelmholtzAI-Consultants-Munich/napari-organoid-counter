@@ -14,7 +14,7 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ***Hold it for the demo!***
 
-<video src="readme-content/demo-v026.mp4" controls="controls" width="100%"></video>
+![Demo](readme-content/demo-v026.gif)
 
 This demo showcases the features of Version 0.2, while the new functionalities of the latest version are detailed in the "Latest version features" section.
 
