@@ -109,20 +109,20 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 
 If you use this plugin for your work, please cite it using the following:
 
-> Christina Bukas, Harshavardhan Subramanian, & Marie Piraud. (2023). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.0 (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.7859571
+> Christina Bukas, Fracesco Campi, Abdulkader Ghandoura, & Marie Piraud. (2024). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.4(v0.2.4). Zenodo. https://doi.org/10.5281/zenodo.12825628
 > 
 bibtex:
 ```
-@software{christina_bukas_2022_6457904,
-  author       = {Christina Bukas, Harshavardhan Subramanian, & Marie Piraud},
-  title        = {{HelmholtzAI-Consultants-Munich/napari-organoid- 
-                   counter: second release of the napari plugin for lung
-                   organoid counting}},
-  month        = apr,
-  year         = 2023,
+@software{christina_bukas_2024_12825628,
+  author       = {Christina Bukas, Fracesco Campi, Abdulkader Ghandoura, & Marie Piraud},
+  title        = {HelmholtzAI-Consultants-Munich/napari-organoid-
+                   counter: v0.2.4
+                  },
+  month        = jul,
+  year         = 2024,
   publisher    = {Zenodo},
-  version      = {v0.2.0},
-  doi          = {10.5281/zenodo.7859571},
-  url          = {https://doi.org/10.5281/zenodo.7859571}
+  version      = {v0.2.4},
+  doi          = {10.5281/zenodo.12825628},
+  url          = {https://doi.org/10.5281/zenodo.12825628},
 }
 ```
