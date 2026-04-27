@@ -904,6 +904,15 @@ class OrganoidCounterWidget(QWidget):
         self.downsampling = list(settings.DEFAULT_DOWNSAMPLING)
         self._sync_window_settings_textboxes()
 
+        # Reset model selection to built-in default
+        default_model_name = list(settings.MODELS.keys())[0]
+        self.model_name = default_model_name
+        default_idx = self.model_selection.findText(default_model_name)
+        if default_idx >= 0:
+            self.model_selection.blockSignals(True)
+            self.model_selection.setCurrentIndex(default_idx)
+            self.model_selection.blockSignals(False)
+
     def _on_screenshot_click(self):
         """ Is called whenever Take Screenshot button is clicked """
         screenshot=self.viewer.screenshot()
