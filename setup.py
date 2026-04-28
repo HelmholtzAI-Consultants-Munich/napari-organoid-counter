@@ -53,4 +53,15 @@ setup(
             'napari-organoid-counter = napari_organoid_counter:napari.yaml',
         ],
     },
+    classifiers=[
+        "Development Status :: 2 - Pre-Alpha",
+        "Intended Audience :: Developers",
+        "Framework :: napari",
+        "Topic :: Software Development :: Testing",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Operating System :: OS Independent",
+        "License :: OSI Approved :: MIT License",
+    ],
 )

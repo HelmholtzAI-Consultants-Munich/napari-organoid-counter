@@ -109,20 +109,23 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 
 If you use this plugin for your work, please cite it using the following:
 
-> Christina Bukas, Fracesco Campi, Abdulkader Ghandoura, & Marie Piraud. (2024). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.4(v0.2.4). Zenodo. https://doi.org/10.5281/zenodo.12825628
+> Christina Bukas, Francesco Campi, Abdulkader Ghandoura, & Piraud, M. (2026). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.6 (v0.2.6). Zenodo. https://doi.org/10.5281/zenodo.19824587
 > 
 bibtex:
 ```
-@software{christina_bukas_2024_12825628,
-  author       = {Christina Bukas, Fracesco Campi, Abdulkader Ghandoura, & Marie Piraud},
+@software{christina_bukas_2026_19824587,
+  author       = {Christina Bukas and
+                  Francesco Campi and
+                  Abdulkader Ghandoura and
+                  Piraud, Marie},
   title        = {HelmholtzAI-Consultants-Munich/napari-organoid-
-                   counter: v0.2.4
+                   counter: v0.2.6
                   },
-  month        = jul,
-  year         = 2024,
+  month        = apr,
+  year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.2.4},
-  doi          = {10.5281/zenodo.12825628},
-  url          = {https://doi.org/10.5281/zenodo.12825628},
+  version      = {v0.2.6},
+  doi          = {10.5281/zenodo.19824587},
+  url          = {https://doi.org/10.5281/zenodo.19824587},
 }
 ```
