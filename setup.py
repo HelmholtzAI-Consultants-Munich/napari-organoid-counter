@@ -19,6 +19,14 @@ setup(
     url='https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter',
     license='MIT',
     description='A plugin to automatically count lung organoids using Deep Learning.',
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
+    project_urls={
+        'Source Code': 'https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter',
+        'Documentation': 'https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter#README.md',
+        'Bug Tracker': 'https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues',
+        'User Support': 'https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues'
+    },
     packages=find_packages(),
     python_requires='>=3.10, <3.11',
     install_requires=[
