@@ -49,14 +49,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pytest pytest-qt pytest-cookies
           pip install -e ".[testing]"
+          python -m pip install PyQt5
           pip uninstall -y opencv-python opencv-contrib-python
           pip install opencv-python-headless
 
-      - name: Test
+      - name: Test (Linux headless)
+        if: runner.os == 'Linux'
         uses: aganders3/headless-gui@v1
         with:
           run: |
             python -m pytest -s -v --color=yes
+
+      - name: Test (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: |
+          python -m pytest -s -v --color=yes
   
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
@@ -84,4 +91,3 @@ jobs:
           git tag
           python -m build .
           twine upload dist/*
-
