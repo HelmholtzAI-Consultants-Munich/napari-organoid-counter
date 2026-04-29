@@ -14,7 +14,7 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 ***Hold it for the demo!***
 
-![Demo](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-v026.gif)
+![Demo](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-v026.gif?raw=true)
 
 This demo showcases the features of Version 0.2, while the new functionalities of the latest version are detailed in the "Latest version features" section.
 
