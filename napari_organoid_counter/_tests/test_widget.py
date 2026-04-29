@@ -41,15 +41,15 @@ def test_organoid_counter_widget(make_napari_viewer, capsys):
     my_widget._on_diameter_changed(50)
     my_widget.min_diameter_spinbox.setValue(50)
     assert my_widget.min_diameter == my_widget.min_diameter_spinbox.value()
-    my_widget.confidence_spinbox.setValue(0.65)
-    assert my_widget.confidence == my_widget.confidence_spinbox.value()
+    my_widget.confidence_slider.setValue(65)
+    assert my_widget.confidence == 0.65
 
     # test that reset button resets all parameters to default settings 
     my_widget._on_reset_click()
     assert my_widget.min_diameter==30
     assert my_widget.min_diameter_spinbox.value()==30
     assert my_widget.confidence==0.8
-    assert my_widget.confidence_spinbox.value()==0.8
+    assert my_widget.confidence_slider.value()==80
 
     #my_widget._on_screenshot_click()
     #'''TO DO'''

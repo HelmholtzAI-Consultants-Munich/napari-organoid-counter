@@ -71,6 +71,7 @@ class OrganoiDL():
         self.handle_progress = handle_progress
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.cur_confidence = 0.05
+        self.min_stored_confidence = 0.05
         self.cur_min_diam = 30
 
         self.cancel_requested = False
@@ -88,6 +89,21 @@ class OrganoiDL():
         self.pred_labels = {}
         self.pred_ids = {}
         self.next_id = {}
+
+    def _filter_by_min_stored_confidence(self, bboxes, scores, labels, ids=None):
+        """Remove detections below persistent storage confidence floor."""
+        if scores is None or len(scores) == 0:
+            return bboxes, scores, labels, ids
+
+        keep = (scores >= self.min_stored_confidence).nonzero(as_tuple=True)[0]
+        bboxes = bboxes[keep]
+        scores = scores[keep]
+        labels = labels[keep]
+
+        if ids is None:
+            return bboxes, scores, labels, None
+        ids = [ids[int(i)] for i in keep.tolist()]
+        return bboxes, scores, labels, ids
 
     def set_scale(self, img_scale):
         ''' Set the image scale: used to calculate real box sizes. '''
@@ -309,6 +325,10 @@ class OrganoiDL():
         if self.model_name and "(DO)" in self.model_name:  # TODO: what about the annotation mode?
             pred_labels = torch.full_like(pred_labels, -1)
 
+        # Filter results by confidence min threshold to discard low confidence boxes
+        bboxes, pred_scores, pred_labels, _ = self._filter_by_min_stored_confidence(
+            bboxes, pred_scores, pred_labels
+        )
         self.pred_bboxes[shapes_name] = bboxes
         self.pred_scores[shapes_name] = pred_scores
         self.pred_labels[shapes_name] = pred_labels

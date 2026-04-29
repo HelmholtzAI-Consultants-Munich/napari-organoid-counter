@@ -28,8 +28,9 @@ setup(
         'User Support': 'https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues'
     },
     packages=find_packages(),
-    python_requires='>=3.10, <3.11',
+    python_requires='>=3.11, <3.12',
     install_requires=[
+        'numpy==1.26.4',
         'napari[all]==0.7.0',
         'bioio==3.3.0',
         'bioio-ome-tiff==1.4.0',
@@ -43,7 +44,7 @@ setup(
         'lxml_html_clean==0.4.4',
         'torchvision==0.20.1',
         'opencv-python==4.11.0.86',
-        f'{onnxruntime_pkg}>=1.23.0',
+        f'{onnxruntime_pkg}==1.23.0',
     ],
     extras_require={
         'testing': [

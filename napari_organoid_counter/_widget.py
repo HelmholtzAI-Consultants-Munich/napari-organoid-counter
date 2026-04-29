@@ -22,7 +22,7 @@ from qtpy.QtGui import QBrush, QColor, QFontMetrics, QCursor
 from qtpy.QtWidgets import (
     QMessageBox, QWidget, QVBoxLayout, QApplication, QDialog, QFileDialog, QGroupBox, 
     QHBoxLayout, QLabel, QComboBox, QPushButton, QLineEdit, QProgressBar, 
-    QDoubleSpinBox, QSpinBox, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem,
+    QSpinBox, QCheckBox, QScrollArea, QTreeWidget, QTreeWidgetItem, QSlider,
     QToolButton, QToolTip
 )
 
@@ -398,19 +398,20 @@ class OrganoidCounterWidget(QWidget):
         # switch to values of other shapes layer if clicked
         if type(cur_seg_selected)==layers.Shapes:
             if self.cur_shapes_layer is not None and self.cur_shapes_name:
-                self.stored_confidences[self.cur_shapes_name] = self.confidence_spinbox.value()
+                self.stored_confidences[self.cur_shapes_name] = self.confidence_slider.value() / 100.0
                 self.stored_diameters[self.cur_shapes_name] = self.min_diameter_spinbox.value()
             self.cur_shapes_layer = cur_seg_selected
             self.cur_shapes_name = cur_seg_selected.name
             # Ensure defaults exist for newly created/loaded shape layers.
             self.stored_diameters.setdefault(self.cur_shapes_name, self.min_diameter_spinbox.value())
-            self.stored_confidences.setdefault(self.cur_shapes_name, self.confidence_spinbox.value())
+            self.stored_confidences.setdefault(self.cur_shapes_name, self.confidence_slider.value() / 100.0)
             # update min diameter with previous value of that layer
             self.min_diameter = self.stored_diameters[self.cur_shapes_name]
             self.min_diameter_spinbox.setValue(self.min_diameter)
             # update confidence with previous value of that layer
             self.confidence = self.stored_confidences[self.cur_shapes_name]
-            self.confidence_spinbox.setValue(self.confidence)
+            self.confidence_textbox.setText(str(self.confidence))
+            self.confidence_slider.setValue(int(self.confidence * 100))
             self._hover_idx = None
             self._hover_base = ""
 
@@ -822,7 +823,7 @@ class OrganoidCounterWidget(QWidget):
             "window_sizes": window_sizes,
             "downsampling": downsampling,
             "min_diameter": self.min_diameter_spinbox.value(),
-            "confidence": float(self.confidence_spinbox.value()),
+            "confidence": float(self.confidence),
             "annotation_mode": self.annotation_mode,
             "model_name": self.model_name,
         }
@@ -878,11 +879,25 @@ class OrganoidCounterWidget(QWidget):
             return
         self._rerun()
 
-    def _on_confidence_changed(self, value: float):
-        """ Is called whenever user changes the confidence spinbox """
-        self.confidence = float(value)
-        if len(self.shape_layer_names)==0:
-            return
+    def _on_confidence_slider_changed(self, value: int):
+        """ Is called whenever user changes the confidence slider """
+        self.confidence = self.confidence_slider.value()/100
+        self.confidence_slider_changed = True
+        if float(self.confidence_textbox.text()) != self.confidence:
+            self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider_changed = False
+        # check if no labels loaded yet
+        if len(self.shape_layer_names)==0: return
+        self._rerun()
+    
+    def _on_confidence_textbox_changed(self):
+        """ Is called whenever user changes the confidence value from the textbox """
+        if self.confidence_slider_changed: return
+        self.confidence = float(self.confidence_textbox.text())
+        slider_conf_value = int(self.confidence*100)
+        if self.confidence_slider.value() != slider_conf_value:
+            self.confidence_slider.setValue(slider_conf_value)
+        if len(self.shape_layer_names)==0: return
         self._rerun()
 
     def _on_reset_click(self):
@@ -895,9 +910,10 @@ class OrganoidCounterWidget(QWidget):
 
         # Reset confidence
         self.confidence = 0.8
-        self.confidence_spinbox.blockSignals(True)
-        self.confidence_spinbox.setValue(self.confidence)
-        self.confidence_spinbox.blockSignals(False)
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider.blockSignals(True)
+        self.confidence_slider.setValue(int(self.confidence * 100))
+        self.confidence_slider.blockSignals(False)
 
         # Reset window sizes and downsampling
         self.window_sizes = list(settings.DEFAULT_WINDOW_SIZES)
@@ -1129,7 +1145,7 @@ class OrganoidCounterWidget(QWidget):
             layer = self.viewer.layers[layer_name]
             self._shape_name_by_id[id(layer)] = layer.name
             self.stored_diameters.setdefault(layer_name, self.min_diameter_spinbox.value())
-            self.stored_confidences.setdefault(layer_name, self.confidence_spinbox.value())
+            self.stored_confidences.setdefault(layer_name, self.confidence_slider.value() / 100.0)
             # bind rename handler
             layer.events.name.connect(lambda e, layer=layer: self._on_shapes_layer_renamed(layer))
 
@@ -1204,7 +1220,7 @@ class OrganoidCounterWidget(QWidget):
             self.organoiDL.next_id[self.cur_shapes_name] = 1
 
         # get new ids, new boxes and update the number of organoids
-        new_ids = self.viewer.layers[self.cur_shapes_name].properties['box_id']
+        new_ids = list(self.viewer.layers[self.cur_shapes_name].properties['box_id'])
         self._update_num_organoids(len(new_ids))
         
         # check if duplicate ids - this happens when user adds a box
@@ -1216,10 +1232,12 @@ class OrganoidCounterWidget(QWidget):
             next_unique_id = max(existing_ids + backend_ids, default=0) + 1
             next_unique_id = max(next_unique_id, int(self.organoiDL.next_id.get(self.cur_shapes_name, 1)))
             new_ids[-1] = next_unique_id
-            new_scores = self.viewer.layers[self.cur_shapes_name].properties['scores']
+            new_scores = list(self.viewer.layers[self.cur_shapes_name].properties['scores'])
             new_scores[-1] = 1  # give new box score = 1
-            new_labels = self.viewer.layers[self.cur_shapes_name].properties.get(
-                'labels', [-1] * len(self.cur_shapes_layer.data)
+            new_labels = list(
+                self.viewer.layers[self.cur_shapes_name].properties.get(
+                    'labels', [-1] * len(self.cur_shapes_layer.data)
+                )
             )
     
             # set new properties to shapes layer
@@ -1514,25 +1532,31 @@ class OrganoidCounterWidget(QWidget):
         Sets up the GUI part where the confidence parameter is displayed
         """
         hbox = QHBoxLayout()
+        # setup confidence slider
+        self.confidence_slider = QSlider(Qt.Horizontal)
+        self.confidence_slider.setMinimum(5)
+        self.confidence_slider.setMaximum(100)
+        self.confidence_slider.setSingleStep(5)
+        vis_confidence = int(self.confidence*100)
+        self.confidence_slider.setValue(vis_confidence)
+        self.confidence_slider.valueChanged.connect(self._on_confidence_slider_changed)
         # setup label
         confidence_label = QLabel('Model confidence: ', self)
         confidence_label.setAlignment(Qt.AlignCenter | Qt.AlignVCenter)
-        # setup confidence spinbox
-        self.confidence_spinbox = QDoubleSpinBox(self)
-        self.confidence_spinbox.setRange(0.05, 1.0)
-        self.confidence_spinbox.setSingleStep(0.05)
-        self.confidence_spinbox.setDecimals(2)
-        self.confidence_spinbox.setValue(float(self.confidence))
-        self.confidence_spinbox.valueChanged.connect(self._on_confidence_changed)
+        # setup text box
+        self.confidence_textbox = QLineEdit(self)
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_textbox.returnPressed.connect(self._on_confidence_textbox_changed)  
         info_text = (
             "Minimum score the model must assign to a detection for it to be kept.\n"
             "Range: 0.05 (keep almost everything) to 1.0 (only near-certain detections).\n"
             "Higher values reduce false positives but may miss real organoids.\n"
-            "You can type a value directly or use the arrows to adjust."
+            "You can type a value directly or drag the slider. Press Enter to apply a typed value."
         )
         # and add all these to the layout
-        hbox.addWidget(confidence_label, 4)
-        hbox.addWidget(self.confidence_spinbox, 6)
+        hbox.addWidget(confidence_label, 3)
+        hbox.addWidget(self.confidence_textbox, 1)
+        hbox.addWidget(self.confidence_slider, 6)
         hbox.addWidget(self._make_help_button(info_text))
         return hbox
 
@@ -1903,6 +1927,7 @@ class OrganoidCounterWidget(QWidget):
             "downsampling": self.downsampling,
             "annotation_mode": self.annotation_mode,
         }
+        print(f"Saving metadata for {img_path.name}: {meta}")
         try:
             utils.write_to_json(str(self._meta_json_path(img_path)), meta)
         except OSError as exc:
@@ -1936,9 +1961,10 @@ class OrganoidCounterWidget(QWidget):
         # Apply confidence
         confidence = float(meta.get("confidence", fallback_confidence))
         self.confidence = confidence
-        self.confidence_spinbox.blockSignals(True)
-        self.confidence_spinbox.setValue(self.confidence)
-        self.confidence_spinbox.blockSignals(False)
+        self.confidence_textbox.setText(str(self.confidence))
+        self.confidence_slider.blockSignals(True)
+        self.confidence_slider.setValue(int(self.confidence * 100))
+        self.confidence_slider.blockSignals(False)
 
         # Apply min diameter
         min_diameter = int(meta.get("min_diameter", fallback_min_diameter))
@@ -2024,14 +2050,13 @@ class OrganoidCounterWidget(QWidget):
         When the current image has only a draft (no complete .json), saves as draft
         so switching images does not overwrite the draft with a full save.
         """
+   
         if self.current_image_path is None:
             return True  # No image loaded, nothing to save
 
         if (
             self.cur_shapes_layer is None
             or len(self.cur_shapes_layer.data) == 0
-            or self.cur_shapes_name not in self.viewer.layers
-            or self.viewer.layers[self.cur_shapes_name] is not self.cur_shapes_layer
         ):
             return True  # No boxes to save, or layer reference is stale
 
@@ -2249,15 +2274,14 @@ class OrganoidCounterWidget(QWidget):
                             msg.setIcon(QMessageBox.Warning)
                             msg.setWindowTitle("Scale Mismatch Detected")
                             msg.setText(
+                                "The annotation you loaded was saved with a different image scale than the current image.\n\n"
                                 f"The annotation was saved with scale:\n"
                                 f"  (y={saved_scale[0]:.4f}, x={saved_scale[1]:.4f}) µm/px\n\n"
                                 f"The current image scale is:\n"
                                 f"  (y={image_scale[0]:.4f}, x={image_scale[1]:.4f}) µm/px\n\n"
-                                f"Use the image scale for correct physical measurements, or keep "
-                                f"the saved scale to stay consistent with an existing dataset."
                             )
                             use_image_btn = msg.addButton("Use Image Scale", QMessageBox.AcceptRole)
-                            msg.addButton("Keep Saved Scale", QMessageBox.RejectRole)
+                            msg.addButton("Use Annotation Scale", QMessageBox.RejectRole)
                             msg.exec_()
                             if msg.clickedButton() is not use_image_btn:
                                 # Sync image layer to saved scale so boxes and image align in world space.
