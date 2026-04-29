@@ -10,13 +10,13 @@
 [![codecov](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter/branch/main/graph/badge.svg)](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter)
 
 
-A napari plugin to automatically count lung organoids from microscopy imaging data. Note: this plugin only supports single channel grayscale images.
+A napari plugin to automatically count lung organoids from microscopy imaging data. Note: this plugin only supports single-channel grayscale images.
 
 ***Hold it for the demo!***
 
 ![Demo](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/blob/main/readme-content/demo-v026.gif?raw=true)
 
-This demo showcases the features of Version 0.2, while the new functionalities of the latest version are detailed in the "Latest version features" section.
+This demo showcases the features of Version 0.2.9.
 
 ----------------------------------
 
@@ -25,7 +25,7 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 ## Installation
 
-This plugin has been tested with python 3.10 - you may consider using conda or mamba to create your dedicated environment before running the `napari-organoid-counter`.
+This plugin has been tested with python 3.11 - you may consider using conda or mamba to create your dedicated environment before running the `napari-organoid-counter`.
 
 1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
