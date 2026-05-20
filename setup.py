@@ -30,12 +30,10 @@ setup(
     packages=find_packages(),
     python_requires='>=3.11, <3.12',
     install_requires=[
-        'numpy==1.26.4',
         'napari[all]==0.7.0',
         'bioio==3.3.0',
         'bioio-ome-tiff==1.4.0',
         'bioio-tifffile==1.3.0',
-        'bioio-imageio==1.3.0',
         'bioio-czi==2.6.0',
         'bioio-nd2==1.6.2',
         'bioio-lif==1.4.0',

@@ -286,14 +286,14 @@ class OrganoidCounterWidget(QWidget):
 
         # Unbind all potential class keys (CTRL+0 to CTRL+9)
         for class_num in range(10):
-            key = f'Control-{class_num}'
+            key = f'Alt-{class_num}'
             if key in self.viewer.keymap:
                 self.viewer.keymap.pop(key) # Remove the key binding if it already exists
 
         # Bind all keys and validate them on press
         bound_keys = []
         for class_num in range(10):
-            key = f'Control-{class_num}'
+            key = f'Alt-{class_num}'
             
             # Capture 'class_num' using a lambda default argument
             @self.viewer.bind_key(key, overwrite=True)
