@@ -1019,36 +1019,6 @@ class OrganoidCounterWidget(QWidget):
         name, _ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'CSV files (*.csv)')#, 'CSV Files (*.csv)')
         if name: utils.write_to_csv(name, data_csv)
 
-    def _on_save_json_click(self):
-        """ Is called whenever Save boxes button is clicked """
-        bboxes = self.viewer.layers[self.save_layer_name].data
-        #scores = #add
-        if not bboxes: 
-            show_info('No organoids detected! Please run auto organoid counter or run algorithm first and try again!')
-            return
-        
-        # Get the labels for the bounding boxes
-        labels, all_valid = self._assign_labels()
-            
-        # If any bounding box has an invalid color, show a warning and return without saving
-        if not all_valid:
-            # If no match is found, mark as not all boxes are colored
-            show_error("Some organoids have not been assigned a valid class (null class). Please ensure all organoids are properly classified before saving.")
-            return
-
-        # Get the bounding boxes as a dictionary
-        data_json = utils.get_bboxes_as_dict(bboxes, 
-                                    self.viewer.layers[self.save_layer_name].properties['box_id'],
-                                    self.viewer.layers[self.save_layer_name].properties['scores'],
-                                    self.viewer.layers[self.save_layer_name].scale,
-                                    labels,)
-            
-        
-        # write bbox coordinates to json
-        fd = QFileDialog()
-        name,_ = fd.getSaveFileName(self, 'Save File', self.save_layer_name, 'JSON files (*.json)')#, 'CSV Files (*.csv)')
-        if name: utils.write_to_json(name, data_json)
-
     def _update_added_image(self, added_items):
         """
         Update the image name display when images have been added and update the self.original_images and self.original_contrast dicts.
@@ -1927,7 +1897,6 @@ class OrganoidCounterWidget(QWidget):
             "downsampling": self.downsampling,
             "annotation_mode": self.annotation_mode,
         }
-        print(f"Saving metadata for {img_path.name}: {meta}")
         try:
             utils.write_to_json(str(self._meta_json_path(img_path)), meta)
         except OSError as exc:
@@ -2117,7 +2086,7 @@ class OrganoidCounterWidget(QWidget):
         )
 
         # Save JSON (boxes)
-        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
+        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels, self.viewer.layers[self.image_layer_name].data.shape)
         utils.write_to_json(str(json_path), data_json)
 
         # Save CSV (features)
@@ -2164,8 +2133,8 @@ class OrganoidCounterWidget(QWidget):
             if self.image_layer_name and self.image_layer_name in self.viewer.layers
             else self.cur_shapes_layer.scale
         )
-
-        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels)
+        # print image size
+        data_json = utils.get_bboxes_as_dict(bboxes, box_ids, scores, scale, labels, self.viewer.layers[self.image_layer_name].data.shape)
         utils.write_to_json(str(draft_path), data_json)
 
         # Remove complete annotation files if present so the image is draft-only

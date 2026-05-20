@@ -67,13 +67,16 @@ def write_to_json(name, data):
     with open(name, 'w') as outfile:
         json.dump(data, outfile)  
 
-def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels):
+def get_bboxes_as_dict(bboxes, bbox_ids, scores, scales, labels, image_shape):
     """ Write all data, boxes, ids and scores, scale and class label, to a dict so we can later save as a json """
     data_json = {} 
     for idx, bbox in enumerate(bboxes):
         x1, y1 = bbox[0]
         x2, y2 = bbox[2]
-
+        x1  = min(max(0, x1), image_shape[0]-1)  # Ensure x1 is within image width
+        x2  = min(max(0, x2), image_shape[0]-1)  # Ensure x2 is within image width
+        y1  = min(max(0, y1), image_shape[1]-1)  # Ensure y1 is within image height
+        y2  = min(max(0, y2), image_shape[1]-1)  # Ensure y2 is within image height
         data_json.update({str(bbox_ids[idx]): {'box_id': str(bbox_ids[idx]),
                                                 'x1': str(x1),
                                                 'x2': str(x2),
