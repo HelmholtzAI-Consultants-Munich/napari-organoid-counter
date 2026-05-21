@@ -1,4 +1,4 @@
-# Napari Organoid Counter - Version 0.2.9 is out! 
+# Napari Organoid Counter. 
 
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
