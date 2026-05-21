@@ -12,6 +12,7 @@ from datetime import datetime
 import napari
 from napari import layers
 from napari.utils.notifications import show_info, show_error, show_warning
+from napari.utils.action_manager import action_manager
 
 import numpy as np
 
@@ -286,14 +287,21 @@ class OrganoidCounterWidget(QWidget):
 
         # Unbind all potential class keys (CTRL+0 to CTRL+9)
         for class_num in range(10):
-            key = f'Alt-{class_num}'
+            key = f'{class_num}'
             if key in self.viewer.keymap:
                 self.viewer.keymap.pop(key) # Remove the key binding if it already exists
-
+            actions_to_remove = []
+            for action, shortcuts in action_manager._shortcuts.items():
+                for s in shortcuts:
+                    if key == str(s):
+                        actions_to_remove.append(action)
+            for action in actions_to_remove:
+                print(f"Removing action '{action}'.")
+                action_manager.unbind_shortcut(action) # Remove the action from the action manager if it exists
         # Bind all keys and validate them on press
         bound_keys = []
         for class_num in range(10):
-            key = f'Alt-{class_num}'
+            key = f'{class_num}'
             
             # Capture 'class_num' using a lambda default argument
             @self.viewer.bind_key(key, overwrite=True)
