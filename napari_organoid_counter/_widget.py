@@ -291,13 +291,22 @@ class OrganoidCounterWidget(QWidget):
             if key in self.viewer.keymap:
                 self.viewer.keymap.pop(key) # Remove the key binding if it already exists
             actions_to_remove = []
+            remaining_shortcuts = []
             for action, shortcuts in action_manager._shortcuts.items():
-                for s in shortcuts:
-                    if key == str(s):
-                        actions_to_remove.append(action)
-            for action in actions_to_remove:
-                print(f"Removing action '{action}'.")
-                action_manager.unbind_shortcut(action) # Remove the action from the action manager if it exists
+                remaining = [s for s in shortcuts if str(s) != key]
+
+                if len(remaining) != len(shortcuts):
+                    actions_to_remove.append(action)
+                    remaining_shortcuts.append(remaining)
+                    print(f"Removing shortcut '{key}' from action '{action}'")
+            for action, remaining in zip(actions_to_remove, remaining_shortcuts):
+                # remove all shortcuts for this action
+                action_manager.unbind_shortcut(action)
+
+                # add back only the ones we want to keep
+                for shortcut in remaining:
+                    print(f"Re-binding remaining shortcut '{shortcut}' to action '{action}'")
+                    action_manager.bind_shortcut(action, shortcut)
         # Bind all keys and validate them on press
         bound_keys = []
         for class_num in range(10):
