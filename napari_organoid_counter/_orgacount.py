@@ -118,7 +118,12 @@ class OrganoiDL():
             raise ValueError(f"Only ONNX models are supported, got: {model_checkpoint}")
 
         provider = get_best_provider()
-        self.model = ort.InferenceSession(model_checkpoint, providers=[provider])
+        try:
+            self.model = ort.InferenceSession(model_checkpoint, providers=[provider])
+        except Exception as e:
+            os.remove(model_checkpoint)
+            raise RuntimeError(f"Failed to load ONNX model, try running the model again.")
+            
         self.input_name = self.model.get_inputs()[0].name
         self.output_names = [o.name for o in self.model.get_outputs()]
 
