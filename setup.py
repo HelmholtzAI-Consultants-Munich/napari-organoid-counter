@@ -30,7 +30,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.11, <=3.13',
     install_requires=[
-        'napari[all]>=0.7.0',
+        'napari[all]>=0.5.0',
         'bioio==3.3.0',
         'bioio-ome-tiff==1.4.0',
         'bioio-tifffile==1.3.0',

@@ -1,4 +1,4 @@
-# Napari Organoid Counter. 
+# Napari Organoid Counter.
 
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-organoid-counter)](https://napari-hub.org/plugins/napari-organoid-counter)
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
@@ -9,7 +9,6 @@
 [![tests](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/workflows/tests/badge.svg)](https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/actions)
 [![codecov](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter/branch/main/graph/badge.svg)](https://codecov.io/gh/HelmholtzAI-Consultants-Munich/napari-organoid-counter)
 
-
 A napari plugin to automatically count lung organoids from microscopy imaging data. Note: this plugin only supports single-channel grayscale images.
 
 ***Hold it for the demo!***
@@ -18,10 +17,9 @@ A napari plugin to automatically count lung organoids from microscopy imaging da
 
 This demo showcases the features of Version 0.2.13.
 
-----------------------------------
+---
 
-This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
-
+This [napari][napari] plugin was generated with [Cookiecutter][Cookiecutter] using [@napari][@napari]'s [cookiecutter-napari-plugin][cookiecutter-napari-plugin] template.
 
 ## Installation
 
@@ -29,36 +27,42 @@ This plugin has been tested with python 3.11 - you may consider using conda or m
 
 1. You can install `napari-organoid-counter` via [pip](https://pypi.org/project/napari-organoid-counter/):
 
-    ``` pip install napari-organoid-counter```
+   `` pip install napari-organoid-counter``
 
    To install for a developer:
 
-    ```git clone https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter```
-    ```pip install -e .```
+   ``git clone https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter``
+   ``pip install -e .``
 
-For installing on a Windows machine directly from within napari, follow the instuctions [here](readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf).
+For installing on a Windows machine directly from within napari, follow the instuctions [here](<readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf>).
 
 ## Latest version features
+
 Checkout *Features of the latest version* [here](.napari/DESCRIPTION.md#whats-new-in-v3).
 
 ## How to use?
+
 1. To launch the plugin directly from your terminal:
+
 ```bash
 napari -w napari-organoid-counter
 ```
 
 2. For convenience you can add a shell alias  by adding this to your `~/.zshrc` (macOS) or `~/.bashrc` (Linux):
+
 ```bash
 alias organoid='napari -w napari-organoid-counter'
 ```
 
 Then reload your shell config:
+
 ```bash
 source ~/.zshrc   # macOS
 source ~/.bashrc  # Linux
 ```
 
 You can now launch the plugin simply by running:
+
 ```bash
 organoid
 ```
@@ -74,19 +78,18 @@ the coverage at least stays the same before you submit a pull request.
 
 ## License
 
-Distributed under the terms of the [MIT] license,
+Distributed under the terms of the [MIT][MIT] license,
 "napari-organoid-counter" is free and open source software
 
 ## Dependencies
 
-
-```napari-organoid-counter``` uses the ```BioIO```<sup>[1]</sup> for reading and processing images.
+``napari-organoid-counter`` uses the ``BioIO``<sup>[1]</sup> for reading and processing images.
 
 [1] Eva Maxfield Brown, Dan Toloudis, Jamie Sherman, Madison Swain-Bowden, Talley Lambert, Sean Meharry, Brian Whitney, AICSImageIO Contributors (2023). BioIO: Image Reading, Metadata Conversion, and Image Writing for Microscopy Images in Pure Python [Computer software]. GitHub. https://github.com/bioio-devs/bioio
 
 ## Issues
 
-If you encounter any problems, please [file an issue] along with a detailed description.
+If you encounter any problems, please [file an issue][file an issue] along with a detailed description.
 
 [napari]: https://github.com/napari/napari
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
@@ -98,20 +101,18 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
 [Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
 [cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
-
 [file an issue]: https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues
-
 [napari]: https://github.com/napari/napari
 [pip]: https://pypi.org/project/pip/
 [PyPI]: https://pypi.org/
-
 ## Citing
 
 If you use this plugin for your work, please cite it using the following:
 
 > Christina Bukas, Francesco Campi, Abdulkader Ghandoura, & Piraud, M. (2026). HelmholtzAI-Consultants-Munich/napari-organoid-counter: v0.2.6 (v0.2.6). Zenodo. https://doi.org/10.5281/zenodo.19824587
-> 
+
 bibtex:
+
 ```
 @software{christina_bukas_2026_19824587,
   author       = {Christina Bukas and
