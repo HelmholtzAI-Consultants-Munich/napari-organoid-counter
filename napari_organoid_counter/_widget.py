@@ -1205,6 +1205,7 @@ class OrganoidCounterWidget(QWidget):
         This function will be called every time the current shapes layer data changes
         """   
         # make sure this stuff isn't done if data in the layer has been changed by the sliders - only by the users
+        print(f"shapes_event_handler called with event type: {event.type}")
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
             return 
@@ -1223,6 +1224,9 @@ class OrganoidCounterWidget(QWidget):
 
         # get new ids, new boxes and update the number of organoids
         new_ids = list(self.viewer.layers[self.cur_shapes_name].properties['box_id'])
+        # if new organoid added make sure the color assigned is magenta (default)
+        if len(new_ids) > self.num_organoids:
+            self.cur_shapes_layer.current_edge_color = settings.COLOR_DEFAULT
         self._update_num_organoids(len(new_ids))
         
         # check if duplicate ids - this happens when user adds a box
