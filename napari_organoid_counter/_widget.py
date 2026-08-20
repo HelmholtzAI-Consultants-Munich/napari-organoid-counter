@@ -1205,7 +1205,6 @@ class OrganoidCounterWidget(QWidget):
         This function will be called every time the current shapes layer data changes
         """   
         # make sure this stuff isn't done if data in the layer has been changed by the sliders - only by the users
-        print(f"shapes_event_handler called with event type: {event.type}")
         key = 'napari-organoid-counter:_rerun'
         if key in self.cur_shapes_layer.metadata: 
             return 
