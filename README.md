@@ -34,7 +34,7 @@ This plugin has been tested with python 3.11 - you may consider using conda or m
    ``git clone https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter``
    ``pip install -e .``
 
-For installing on a Windows machine directly from within napari, follow the instuctions [here](<readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf>).
+For installing on a Windows machine directly from within napari, follow the instructions [here](<readme-content/How%20to%20install%20on%20a%20Windows%20machine.pdf>).
 
 ## Latest version features
 
@@ -91,20 +91,6 @@ Distributed under the terms of the [MIT][MIT] license,
 
 If you encounter any problems, please [file an issue][file an issue] along with a detailed description.
 
-[napari]: https://github.com/napari/napari
-[Cookiecutter]: https://github.com/audreyr/cookiecutter
-[@napari]: https://github.com/napari
-[MIT]: http://opensource.org/licenses/MIT
-[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
-[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
-[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
-[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
-[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
-[cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
-[file an issue]: https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues
-[napari]: https://github.com/napari/napari
-[pip]: https://pypi.org/project/pip/
-[PyPI]: https://pypi.org/
 ## Citing
 
 If you use this plugin for your work, please cite it using the following:
@@ -130,3 +116,18 @@ bibtex:
   url          = {https://doi.org/10.5281/zenodo.19824587},
 }
 ```
+
+[napari]: https://github.com/napari/napari
+[Cookiecutter]: https://github.com/audreyr/cookiecutter
+[@napari]: https://github.com/napari
+[MIT]: http://opensource.org/licenses/MIT
+[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
+[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
+[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
+[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
+[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
+[cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
+[file an issue]: https://github.com/HelmholtzAI-Consultants-Munich/napari-organoid-counter/issues
+[napari]: https://github.com/napari/napari
+[pip]: https://pypi.org/project/pip/
+[PyPI]: https://pypi.org/
