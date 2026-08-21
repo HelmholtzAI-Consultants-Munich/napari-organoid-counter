@@ -1226,6 +1226,9 @@ class OrganoidCounterWidget(QWidget):
         # if new organoid added make sure the color assigned is magenta (default)
         if len(new_ids) > self.num_organoids:
             self.cur_shapes_layer.current_edge_color = settings.COLOR_DEFAULT
+            edge_colors = list(self.viewer.layers[self.cur_shapes_name].edge_color)
+            edge_colors[-1] = settings.COLOR_DEFAULT
+            self.viewer.layers[self.cur_shapes_name].edge_color = edge_colors
         self._update_num_organoids(len(new_ids))
         
         # check if duplicate ids - this happens when user adds a box
