@@ -255,6 +255,33 @@ def apply_normalization(img):
         img_norm = img.astype(np.uint8)
     return img_norm
 
+
+def get_adaptive_edge_width(
+    image_shape,
+    reference_size: int = 5000,
+    reference_width: int = 12,
+    min_width: int = 2,
+    max_width: int = 48,
+) -> int:
+    """Return a shape edge width adapted to the image resolution."""
+    try:
+        shape = tuple(int(dim) for dim in image_shape if int(dim) > 0)
+    except (TypeError, ValueError):
+        return reference_width
+
+    if len(shape) < 2:
+        return reference_width
+
+    if len(shape) >= 3 and shape[-1] in (3, 4):
+        spatial_shape = shape[-3:-1]
+    else:
+        spatial_shape = shape[-2:]
+
+    longest_side = max(spatial_shape)
+    edge_width = round(reference_width * longest_side / reference_size)
+    return int(min(max_width, max(min_width, edge_width)))
+
+
 def get_edge_color(labels, use_default_color: bool):
     edge_color = []
     if use_default_color:  # Detection-Only mode or Deterction only model

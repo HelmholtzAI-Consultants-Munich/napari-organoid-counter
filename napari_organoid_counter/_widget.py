@@ -492,6 +492,14 @@ class OrganoidCounterWidget(QWidget):
         self.original_images[layer_name] = np.asarray(layer.data)
         self.original_contrast[layer_name] = layer.contrast_limits
 
+    def _current_image_edge_width(self) -> int:
+        """Return the annotation edge width for the current image."""
+        if self.image_layer_name and self.image_layer_name in self.viewer.layers:
+            image_shape = self.viewer.layers[self.image_layer_name].data.shape
+        else:
+            image_shape = ()
+        return utils.get_adaptive_edge_width(image_shape)
+
     def _update_num_organoids(self, len_bboxes):
         """ Updates the number of organoids displayed in the viewer """
         self.num_organoids = len_bboxes
@@ -519,6 +527,7 @@ class OrganoidCounterWidget(QWidget):
         all_labels_unassigned = all(int(label) == -1 for label in labels)
         use_default_color = (self.annotation_mode == 0 or "(DO)" in self.model_name) and all_labels_unassigned
         edge_color = utils.get_edge_color(labels, use_default_color)
+        edge_width = self._current_image_edge_width()
                     
         existing_layer = None
         if labels_layer_name in self.viewer.layers:
@@ -528,10 +537,10 @@ class OrganoidCounterWidget(QWidget):
 
         # if layer already exists
         if existing_layer is not None:
-            existing_layer.data = bboxes  # hack to keep edge_width unchanged
+            existing_layer.data = bboxes
             existing_layer.properties = {'box_id': box_ids, 'scores': scores, 'labels': labels}
             existing_layer.edge_color = edge_color
-            existing_layer.edge_width = 12
+            existing_layer.edge_width = edge_width
             existing_layer.refresh()
             existing_layer.refresh_text()
         # or if this is the first run
@@ -539,7 +548,13 @@ class OrganoidCounterWidget(QWidget):
             # if no organoids were found just make an empty shapes layer
             if self.num_organoids==0: 
                 self.cur_shapes_layer = self.viewer.add_shapes(name=labels_layer_name,
-                                                               properties={'box_id': [],'scores': [], 'labels': []})
+                                                               scale=self.viewer.layers[self.image_layer_name].scale,
+                                                               face_color='transparent',
+                                                               properties={'box_id': [],'scores': [], 'labels': []},
+                                                               text=text_params,
+                                                               edge_color=settings.COLOR_DEFAULT,
+                                                               shape_type='rectangle',
+                                                               edge_width=edge_width)
             # otherwise make the layer and add the boxes
             else:
                 properties = {'box_id': box_ids,'scores': scores, 'labels': labels}
@@ -552,10 +567,10 @@ class OrganoidCounterWidget(QWidget):
                                                                text = text_params,
                                                                edge_color=edge_color,
                                                                shape_type='rectangle',
-                                                               edge_width=12) # warning generated here
+                                                               edge_width=edge_width)
                             
-            # set current_edge_width so edge width is the same when users annotate - doesnt' fix new preds being added!
-            self.viewer.layers[labels_layer_name].current_edge_width = 12
+        # Keep manual annotations visually consistent with predictions.
+        self.viewer.layers[labels_layer_name].current_edge_width = edge_width
         
         self._apply_class_filter()
         self._refresh_class_counts()
@@ -1208,6 +1223,12 @@ class OrganoidCounterWidget(QWidget):
 
         # get new ids, new boxes and update the number of organoids
         new_ids = list(self.viewer.layers[self.cur_shapes_name].properties['box_id'])
+        # if new organoid added make sure the color assigned is magenta (default)
+        if len(new_ids) > self.num_organoids:
+            self.cur_shapes_layer.current_edge_color = settings.COLOR_DEFAULT
+            edge_colors = list(self.viewer.layers[self.cur_shapes_name].edge_color)
+            edge_colors[-1] = settings.COLOR_DEFAULT
+            self.viewer.layers[self.cur_shapes_name].edge_color = edge_colors
         self._update_num_organoids(len(new_ids))
         
         # check if duplicate ids - this happens when user adds a box
@@ -2250,9 +2271,13 @@ class OrganoidCounterWidget(QWidget):
 
                         # Always apply the authoritative image scale on load.
                         attrs['scale'] = image_scale
+                        attrs['edge_width'] = utils.get_adaptive_edge_width(
+                            img_data.shape
+                        )
                         loaded_layer = self.viewer.add_shapes(data, **attrs)
                         self.cur_shapes_layer = loaded_layer
                         loaded_layer.current_edge_color = [1.0, 0.0, 1.0, 1.0]
+                        loaded_layer.current_edge_width = attrs['edge_width']
 
                         # Warn user if the saved scale differs from the image scale.
                         if not self._scales_equal(saved_scale, image_scale):

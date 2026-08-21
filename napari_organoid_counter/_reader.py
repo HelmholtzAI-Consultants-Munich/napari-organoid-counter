@@ -4,7 +4,7 @@ from napari import layers
 from pathlib import Path
 
 from napari_organoid_counter import settings
-from napari_organoid_counter._utils import get_edge_color
+from napari_organoid_counter._utils import get_adaptive_edge_width, get_edge_color
 
 # Ensure settings constants are loaded when the reader is imported standalone
 try:
@@ -79,7 +79,7 @@ def reader_function_data_management(path: str) -> layers.Shapes:
                         'face_color': 'transparent',  
                         'edge_color': edge_colors,
                         'shape_type': 'rectangle',
-                        'edge_width': 12
+                        'edge_width': get_adaptive_edge_width(())
     }
     # return data, attributes for displaying and type of layer to add to viewer
     return [(bboxes, layer_attributes, 'shapes', lables)]
